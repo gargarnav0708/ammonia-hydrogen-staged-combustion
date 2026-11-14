@@ -12,6 +12,7 @@ residence time, then compares outlet temperatures, emissions, and fuel slip.
 | --- | --- |
 | `full_results_modified.ipynb` | Main study: model setup, 605-case sweep, plots, sensitivity and reliability analyses, single-stage comparison, and reaction-rate interpretation |
 | `reaction_paths.ipynb` | Optional reaction-path diagram analysis for selected cases |
+| `staged_combustion.py` | Shared model constants, air-split calculation, and PSR steady-state integrator |
 | `TamaokiNH3.yaml` | Cantera gas-phase reaction mechanism used by the notebooks |
 | `staged_combustion_results.csv` | Base sweep results |
 | `staged_combustion_results_full.csv` | Expanded sweep results |
@@ -81,9 +82,9 @@ python -m nbconvert --to notebook --execute \
 3. Run the full sweep and inspect the convergence and equivalence-ratio checks.
 4. Continue through the plots and quantitative analyses; optional solver
    verification is disabled by default.
-5. To generate reaction-path diagrams, first run the main notebook through its
-   model-definition cells, then run `reaction_paths.ipynb` in the same kernel.
-   The reaction-path notebook reuses the main notebook's helper functions.
+5. Run `reaction_paths.ipynb` independently to generate diagrams for the
+   selected case. It imports the shared model settings and solver helpers from
+   `staged_combustion.py`.
 
 Reaction-path rendering additionally requires Graphviz (`dot`) on `PATH`.
 Install it with `brew install graphviz` on macOS, or

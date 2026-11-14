@@ -1,4 +1,4 @@
-cantera>=3.0
+cantera>=3.2
 ipykernel>=6.0
 matplotlib>=3.7
 nbconvert>=7.0
