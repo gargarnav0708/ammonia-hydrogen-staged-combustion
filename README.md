@@ -55,15 +55,24 @@ Python 3.10 or later is recommended. Create and activate a virtual environment,
 then install the dependencies:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m venv .venv-btp
+source .venv-btp/bin/activate    # Windows: .venv-btp\Scripts\activate
 python -m pip install -r requirements.txt
+python -m ipykernel install --user --name btp --display-name "Python (BTP)"
 ```
 
-Open `full_results_modified.ipynb` in Jupyter and run it from the repository
-root. The notebook expects `TamaokiNH3.yaml` in the current working directory.
+Select the **Python (BTP)** kernel, then open `full_results_modified.ipynb` in
+Jupyter and run it from the repository root. The notebook expects
+`TamaokiNH3.yaml` in the current working directory.
 The full parameter sweep performs hundreds of integrations and may take
 significant time. Generated CSV files are written to the repository root.
+To execute it from a terminal and save an executed copy:
+
+```bash
+python -m nbconvert --to notebook --execute \
+  --ExecutePreprocessor.kernel_name=btp \
+  full_results_modified.ipynb --output full_results_executed.ipynb
+```
 
 ### Recommended notebook flow
 
@@ -77,6 +86,8 @@ significant time. Generated CSV files are written to the repository root.
    The reaction-path notebook reuses the main notebook's helper functions.
 
 Reaction-path rendering additionally requires Graphviz (`dot`) on `PATH`.
+Install it with `brew install graphviz` on macOS, or
+`conda install -c conda-forge graphviz` in a Conda environment.
 
 ## Outputs
 
