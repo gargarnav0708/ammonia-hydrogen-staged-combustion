@@ -39,8 +39,9 @@ def integrate_to_steady_state(
     ``ReactorNet.solve_steady()`` for this model.
     """
     t = sim.time
+    phase = getattr(reactor, "phase", getattr(reactor, "thermo", None))
     previous_temperature = reactor.T
-    previous_mass_fractions = reactor.phase.Y.copy()
+    previous_mass_fractions = phase.Y.copy()
 
     minimum_time = t + min_residence_times * tau
     maximum_time = t + max_residence_times * tau
@@ -50,7 +51,7 @@ def integrate_to_steady_state(
         t = sim.time
 
         current_temperature = reactor.T
-        current_mass_fractions = reactor.phase.Y
+        current_mass_fractions = phase.Y
 
         temperature_change = abs(current_temperature - previous_temperature) / max(
             abs(current_temperature), 1.0

@@ -1,0 +1,5 @@
+digraph reaction_paths {
+center=1;
+ label = "Scale = 1\l Nitrogen Reaction Paths: Stage 2 (phi_1=1.3, x_NH3=50%)";
+ fontname = "Helvetica";
+}

@@ -1,0 +1,12 @@
+digraph reaction_paths {
+center=1;
+s13 -> s14[fontname="Helvetica", penwidth=2.67, arrowsize=1.34, color="0.7, 0.512, 0.9"
+, label=" 0.0121"];
+s14 -> s15[fontname="Helvetica", penwidth=2.37, arrowsize=1.19, color="0.7, 0.508, 0.9"
+];
+s13 [ fontname="Helvetica", label="NH3"];
+s14 [ fontname="Helvetica", label="NH2"];
+s15 [ fontname="Helvetica", label="NH"];
+ label = "Scale = 1\l Nitrogen Reaction Paths: Stage 1 (phi_1=1.0, x_NH3=50%)";
+ fontname = "Helvetica";
+}
