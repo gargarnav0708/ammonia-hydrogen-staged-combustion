@@ -99,16 +99,16 @@ Final $\mathrm{NO}_x$ emissions (ppm) across $\phi_1 \in [1.0, 2.0]$ at referenc
 ## Part 3: Phase 3 Deliverables & Artifacts
 
 ### Code:
-* [`staged_combustion.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/staged_combustion.py): Added `simulate_two_stage_decoupled` and `simulate_two_stage_finite_mixing`.
-* [`decoupled_mixing_analysis.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/decoupled_mixing_analysis.py): Parametric engine for 2D residence time sweeps and multi-stage finite mixing comparisons.
-* [`decoupled_and_finite_mixing.ipynb`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/decoupled_and_finite_mixing.ipynb): Interactive notebook running sweeps and displaying figures.
+* [`staged_combustion.py`](../double_stage/staged_combustion.py): Added `simulate_two_stage_decoupled` and `simulate_two_stage_finite_mixing`.
+* [`decoupled_mixing_analysis.py`](../double_stage/decoupled_mixing_analysis.py): Parametric engine for 2D residence time sweeps and multi-stage finite mixing comparisons.
+* [`decoupled_and_finite_mixing.ipynb`](../double_stage/decoupled_and_finite_mixing.ipynb): Interactive notebook running sweeps and displaying figures.
 
 ### Datasets:
-* `decoupled_residence_time_results.csv`: 125 cases across $(\tau_1, \tau_2, \phi_1)$.
-* `finite_mixing_comparison_results.csv`: 33 cases comparing $N = 1, 3, 5$ across $\phi_1 \in [1.0, 2.0]$.
+* `../results/decoupled_residence_time_results.csv`: 125 cases across $(\tau_1, \tau_2, \phi_1)$.
+* `../results/finite_mixing_comparison_results.csv`: 33 cases comparing $N = 1, 3, 5$ across $\phi_1 \in [1.0, 2.0]$.
 
 ### Publication Figures:
-* `plots/decoupled_tau_2d_contour.png`: 2D contour maps of $\mathrm{NO}_x$ over $(\tau_1, \tau_2)$ across $\phi_1 = 1.2, 1.4, 1.6, 2.0$.
-* `plots/decoupled_tau_ratio_tradeoff.png`: Impact of sizing ratio $\tau_1 / \tau_2$ on $\mathrm{NO}_x$ and fuel slip.
-* `plots/finite_mixing_nox_comparison.png`: Comparison of $\mathrm{NO}_x$ curves showing the $88\%$ reduction achieved by progressive dilution.
-* `plots/finite_mixing_temperature_trajectories.png`: Progressive temperature trajectories through the mixing stages.
+* `../results/plots/decoupled_tau_2d_contour.png`: 2D contour maps of $\mathrm{NO}_x$ over $(\tau_1, \tau_2)$ across $\phi_1 = 1.2, 1.4, 1.6, 2.0$.
+* `../results/plots/decoupled_tau_ratio_tradeoff.png`: Impact of sizing ratio $\tau_1 / \tau_2$ on $\mathrm{NO}_x$ and fuel slip.
+* `../results/plots/finite_mixing_nox_comparison.png`: Comparison of $\mathrm{NO}_x$ curves showing the $88\%$ reduction achieved by progressive dilution.
+* `../results/plots/finite_mixing_temperature_trajectories.png`: Progressive temperature trajectories through the mixing stages.

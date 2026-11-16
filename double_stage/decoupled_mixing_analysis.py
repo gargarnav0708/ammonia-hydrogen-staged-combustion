@@ -17,14 +17,20 @@ This script implements:
 
 import os
 import time
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from staged_combustion import (
+from double_stage.staged_combustion import (
     simulate_two_stage_decoupled,
     simulate_two_stage_finite_mixing,
 )
+
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
+PLOTS_DIR = RESULTS_DIR / "plots"
+RESULTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(exist_ok=True)
 
 
 def run_decoupled_residence_time_sweep(x_nh3: float = 0.50):
@@ -52,8 +58,9 @@ def run_decoupled_residence_time_sweep(x_nh3: float = 0.50):
     conv = (df_decoupled["Status"] == "Converged").sum()
     print(f"Decoupled sweep completed in {elapsed:.2f} s: {conv}/{total_cases} converged.")
 
-    df_decoupled.to_csv("decoupled_residence_time_results.csv", index=False)
-    print("Saved decoupled_residence_time_results.csv")
+    output_file = RESULTS_DIR / "decoupled_residence_time_results.csv"
+    df_decoupled.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return df_decoupled
 
 
@@ -84,14 +91,15 @@ def run_finite_mixing_sweep(x_nh3: float = 0.50, tau_1: float = 0.030, tau_2: fl
     conv = (df_mixing["Status"] == "Converged").sum()
     print(f"Finite mixing sweep completed in {elapsed:.2f} s: {conv}/{total_cases} converged.")
 
-    df_mixing.to_csv("finite_mixing_comparison_results.csv", index=False)
-    print("Saved finite_mixing_comparison_results.csv")
+    output_file = RESULTS_DIR / "finite_mixing_comparison_results.csv"
+    df_mixing.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return df_mixing
 
 
 def generate_decoupled_plots(df_decoupled: pd.DataFrame):
     """Generate 2D contour maps and trade-off plots for decoupled residence times."""
-    os.makedirs("plots", exist_ok=True)
+    PLOTS_DIR.mkdir(exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     # -------------------------------------------------------------
@@ -134,9 +142,9 @@ def generate_decoupled_plots(df_decoupled: pd.DataFrame):
         y=0.98,
     )
     plt.tight_layout()
-    plt.savefig("plots/decoupled_tau_2d_contour.png")
+    plt.savefig(PLOTS_DIR / "decoupled_tau_2d_contour.png")
     plt.close()
-    print("Saved plots/decoupled_tau_2d_contour.png")
+    print(f"Saved {PLOTS_DIR / 'decoupled_tau_2d_contour.png'}")
 
     # -------------------------------------------------------------
     # Plot 2: Influence of tau_1 / tau_2 ratio on NOx and NH3 slip
@@ -165,14 +173,14 @@ def generate_decoupled_plots(df_decoupled: pd.DataFrame):
     ax2.legend(frameon=True, fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("plots/decoupled_tau_ratio_tradeoff.png")
+    plt.savefig(PLOTS_DIR / "decoupled_tau_ratio_tradeoff.png")
     plt.close()
-    print("Saved plots/decoupled_tau_ratio_tradeoff.png")
+    print(f"Saved {PLOTS_DIR / 'decoupled_tau_ratio_tradeoff.png'}")
 
 
 def generate_finite_mixing_plots(df_mixing: pd.DataFrame):
     """Generate plots comparing Instantaneous vs. Finite-Rate Progressive Mixing."""
-    os.makedirs("plots", exist_ok=True)
+    PLOTS_DIR.mkdir(exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     # -------------------------------------------------------------
@@ -203,9 +211,9 @@ def generate_finite_mixing_plots(df_mixing: pd.DataFrame):
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend(frameon=True, fontsize=10, loc="upper right")
     plt.tight_layout()
-    plt.savefig("plots/finite_mixing_nox_comparison.png")
+    plt.savefig(PLOTS_DIR / "finite_mixing_nox_comparison.png")
     plt.close()
-    print("Saved plots/finite_mixing_nox_comparison.png")
+    print(f"Saved {PLOTS_DIR / 'finite_mixing_nox_comparison.png'}")
 
     # -------------------------------------------------------------
     # Plot 2: Progressive Temperature Trajectories through Mixing Stages
@@ -236,9 +244,9 @@ def generate_finite_mixing_plots(df_mixing: pd.DataFrame):
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend(frameon=True, fontsize=10, loc="lower left")
     plt.tight_layout()
-    plt.savefig("plots/finite_mixing_temperature_trajectories.png")
+    plt.savefig(PLOTS_DIR / "finite_mixing_temperature_trajectories.png")
     plt.close()
-    print("Saved plots/finite_mixing_temperature_trajectories.png")
+    print(f"Saved {PLOTS_DIR / 'finite_mixing_temperature_trajectories.png'}")
 
 
 if __name__ == "__main__":

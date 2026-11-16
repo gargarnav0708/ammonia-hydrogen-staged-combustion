@@ -15,33 +15,12 @@ This repository contains the complete research program, executing all four phase
 
 | Path | Purpose |
 | --- | --- |
-| `staged_combustion.py` | Shared model constants, air-split calculation, universal Cantera steady-state integrator, decoupled solver ($\tau_1 \neq \tau_2$), multi-stage finite mixing simulator, and gas turbine conditions engine |
-| `single_stage_baseline.py` | **Phase 1:** Single-stage PSR baseline sweep, staged vs. single-stage comparison, and benefit quantification |
-| `single_stage_NH3_H2.ipynb` | **Phase 1:** Interactive Jupyter notebook for single-stage baseline study |
-| `rate_of_production_analysis.py` | **Phase 2:** Kinetic Rate of Production (ROP) analysis, elementary reaction tracking, and Graphviz reaction-path generation |
-| `reaction_paths.ipynb` | **Phase 2:** Interactive Jupyter notebook for reaction-path flux diagrams and U-curve kinetic deconstruction |
-| `decoupled_mixing_analysis.py` | **Phase 3:** Parametric engine for decoupled residence times ($\tau_1 \neq \tau_2$) and multi-stage progressive dilution ($N = 1, 3, 5$) |
-| `decoupled_and_finite_mixing.ipynb` | **Phase 3:** Interactive Jupyter notebook for Phase 3 architecture and mixing physics |
-| `gas_turbine_regimes_analysis.py` | **Phase 4:** Parametric engine for high-pressure ($1 - 30\ \mathrm{atm}$), preheat ($300 - 750\ \mathrm{K}$), and liner cooling sweeps |
-| `gas_turbine_conditions.ipynb` | **Phase 4:** Interactive Jupyter notebook for gas turbine combustor regimes |
-| `PHASE_1_2_IMPLEMENTATION_SUMMARY.md` | Comprehensive report on Phase 1 baseline quantification and Phase 2 chemical kinetics |
-| `PHASE_3_IMPLEMENTATION_SUMMARY.md` | Comprehensive report on Phase 3 decoupled sizing and progressive finite-rate mixing physics |
-| `PHASE_4_IMPLEMENTATION_SUMMARY.md` | Comprehensive report on Phase 4 gas turbine conditions, pressure shifts, preheating, and liner cooling |
-| `full_results_modified.ipynb` | Main study: model setup, 605-case sweep, sensitivity ($\eta^2$), regression, and reliability analyses |
-| `TamaokiNH3.yaml` | Cantera gas-phase reaction mechanism (Tamaoki et al., *Combustion and Flame*, 2024; 33 species, 228 reactions) |
-| `single_stage_results.csv` | Single-stage PSR baseline dataset across 11 blends and 8 residence times |
-| `staged_vs_single_stage_comparison.csv` | 469 matched case comparisons with delta emissions ($\Delta \mathrm{NO}_x$, $\Delta T$, $\Delta \text{slip}$) and percentage $\mathrm{NO}_x$ reduction |
-| `rop_analysis_summary.csv` | Stage-by-stage thermodynamic, emission, and intermediate species carryover across $\phi_1 \in [1.0, 2.0]$ |
-| `rop_no_reactions_by_phi1.csv` | Local elementary reaction progress rates and $\mathrm{NO}$ contribution rates |
-| `decoupled_residence_time_results.csv` | 125 cases of independent $(\tau_1, \tau_2)$ sweeps across $\phi_1$ |
-| `finite_mixing_comparison_results.csv` | Comparison of Instantaneous ($N=1$) vs. 3-stage vs. 5-stage progressive dilution across $\phi_1$ |
-| `pressure_sweep_results.csv` | 55 cases of combustor pressure sweeps ($P = 1 - 30\ \mathrm{atm}$) across $\phi_1$ |
-| `preheat_sweep_results.csv` | 28 cases of inlet preheat sweeps ($T_{\mathrm{in}} = 300 - 750\ \mathrm{K}$) at $10\ \mathrm{atm}$ |
-| `heat_loss_sweep_results.csv` | 28 cases of combustor liner cooling sweeps ($U = 0 - 3000\ \mathrm{W/m^2/K}$) at $15\ \mathrm{atm}, 650\ \mathrm{K}$ |
-| `staged_combustion_results_full.csv` | Expanded 605-case two-stage sweep results |
-| `staged_combustion_research_metrics.csv` | Derived stage-wise metrics |
-| `staged_combustion_eta_squared.csv` | Main-effect variance fractions ($\eta^2$) |
-| `staged_combustion_regression_summary.csv` | Response-surface regression and cross-validation summary |
+| `single_stage/` | Single-stage baseline simulation and its notebook |
+| `double_stage/` | Shared two-stage model, main parametric study, and Phase 2–4 analyses/notebooks |
+| `results/` | All generated and supplied CSV datasets; figures and reaction-path files are in `results/plots/` |
+| `mechanisms/` | Cantera gas-phase mechanism |
+| `docs/` | Phase implementation summaries and project reports |
+| `references/` | Source papers and background reference material |
 | `requirements.txt` | Python dependencies |
 
 ---
@@ -84,21 +63,22 @@ pip install -r requirements.txt
 ### 2. Running Simulation Modules
 ```bash
 # Phase 1: Single-stage baseline
-python single_stage_baseline.py
+python -m single_stage.single_stage_baseline
 
 # Phase 2: Kinetic ROP and reaction path diagrams
-python rate_of_production_analysis.py
+python -m double_stage.rate_of_production_analysis
 
 # Phase 3: Decoupled residence times & progressive finite mixing
-python decoupled_mixing_analysis.py
+python -m double_stage.decoupled_mixing_analysis
 
 # Phase 4: Gas turbine conditions (pressure, preheat, wall cooling)
-python gas_turbine_regimes_analysis.py
+python -m double_stage.gas_turbine_regimes_analysis
 ```
 
 ### 3. Interactive Jupyter Notebooks
-* `single_stage_NH3_H2.ipynb`: Baseline quantification workflows.
-* `reaction_paths.ipynb`: Nitrogen reaction-path diagrams and ROP analysis.
-* `decoupled_and_finite_mixing.ipynb`: Architecture decoupling and progressive mixing physics.
-* `gas_turbine_conditions.ipynb`: Gas turbine operating regimes.
-* `full_results_modified.ipynb`: Main 605-case parametric study.
+Launch Jupyter from the repository root so notebook imports and paths resolve correctly.
+* `single_stage/single_stage_NH3_H2.ipynb`: Baseline quantification workflows.
+* `double_stage/reaction_paths.ipynb`: Nitrogen reaction-path diagrams and ROP analysis.
+* `double_stage/decoupled_and_finite_mixing.ipynb`: Architecture decoupling and progressive mixing physics.
+* `double_stage/gas_turbine_conditions.ipynb`: Gas turbine operating regimes.
+* `double_stage/full_results_modified.ipynb`: Main 605-case parametric study.

@@ -117,25 +117,25 @@ Through local Rate of Production (ROP) analysis and species flux decomposition, 
 ## Part 3: Deliverables and Artifacts Created
 
 ### Scripts & Workflows:
-1. [`staged_combustion.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/staged_combustion.py): Enhanced with universal Cantera 3.0/3.2 reactor thermo compatibility (`getattr(reactor, 'phase', reactor.thermo)`).
-2. [`single_stage_baseline.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/single_stage_baseline.py): Complete Phase-1 simulation module executing single-stage PSR grid sweeps, merging datasets, and generating comparative metrics.
-3. [`single_stage_NH3_H2.ipynb`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/single_stage_NH3_H2.ipynb): Interactive Jupyter notebook for the single-stage baseline study.
-4. [`rate_of_production_analysis.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/rate_of_production_analysis.py): Complete Phase-2 chemical kinetic ROP engine, extracting net progress rates, species contributions, and nitrogen reaction path diagrams.
-5. [`reaction_paths.ipynb`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/reaction_paths.ipynb): Interactive Jupyter notebook for kinetic pathway analysis.
+1. [`staged_combustion.py`](../double_stage/staged_combustion.py): Enhanced with universal Cantera 3.0/3.2 reactor thermo compatibility (`getattr(reactor, 'phase', reactor.thermo)`).
+2. [`single_stage_baseline.py`](../single_stage/single_stage_baseline.py): Complete Phase-1 simulation module executing single-stage PSR grid sweeps, merging datasets, and generating comparative metrics.
+3. [`single_stage_NH3_H2.ipynb`](../single_stage/single_stage_NH3_H2.ipynb): Interactive Jupyter notebook for the single-stage baseline study.
+4. [`rate_of_production_analysis.py`](../double_stage/rate_of_production_analysis.py): Complete Phase-2 chemical kinetic ROP engine, extracting net progress rates, species contributions, and nitrogen reaction path diagrams.
+5. [`reaction_paths.ipynb`](../double_stage/reaction_paths.ipynb): Interactive Jupyter notebook for kinetic pathway analysis.
 
 ### Datasets:
-1. `single_stage_results.csv`: 88 single-stage PSR simulation cases across blends and residence times.
-2. `staged_vs_single_stage_comparison.csv`: 469 matched case-by-case comparison records with delta emissions and percentage reductions.
-3. `rop_analysis_summary.csv`: Stage-by-stage thermodynamic, emission, and intermediate species carryover across $\phi_1 \in [1.0, 2.0]$.
-4. `rop_no_reactions_by_phi1.csv`: Elementary reaction progress and $\mathrm{NO}$ contribution rates across all $\phi_1$ levels.
+1. `../results/single_stage_results.csv`: 88 single-stage PSR simulation cases across blends and residence times.
+2. `../results/staged_vs_single_stage_comparison.csv`: 469 matched case-by-case comparison records with delta emissions and percentage reductions.
+3. `../results/rop_analysis_summary.csv`: Stage-by-stage thermodynamic, emission, and intermediate species carryover across $\phi_1 \in [1.0, 2.0]$.
+4. `../results/rop_no_reactions_by_phi1.csv`: Elementary reaction progress and $\mathrm{NO}$ contribution rates across all $\phi_1$ levels.
 
 ### Visualizations:
-1. `plots/baseline_nox_comparison.png`: Staged vs. single-stage $\mathrm{NO}_x$ as a function of fuel blend at multiple $\phi_1$ levels.
-2. `plots/staging_benefit_heatmap.png`: 2D contour map of staging benefit ($\% \ \mathrm{NO}_x$ reduction) delineating the optimal operational envelope.
-3. `plots/baseline_tradeoff_scatter.png`: $\mathrm{NO}_x$ vs. total unburnt fuel slip scatter trade-off.
-4. `plots/rop_u_curve_pathway_mechanism.png`: Three-panel kinetic figure demonstrating thermal $\mathrm{NO}$ suppression in Stage 1 vs. amine radical carryover and secondary oxidation surge in Stage 2.
-5. `plots/rop_top_no_reactions_stage1_vs_stage2.png`: Bar chart decomposition of top positive and negative elementary $\mathrm{NO}$ reactions in both stages across the 3 regimes.
-6. `plots/reaction_path_phi1_1p*.png`: Graphviz directional nitrogen flux diagrams for Stage 1 and Stage 2 across $\phi_1 = 1.0, 1.3, 1.8$.
+1. `../results/plots/baseline_nox_comparison.png`: Staged vs. single-stage $\mathrm{NO}_x$ as a function of fuel blend at multiple $\phi_1$ levels.
+2. `../results/plots/staging_benefit_heatmap.png`: 2D contour map of staging benefit ($\% \ \mathrm{NO}_x$ reduction) delineating the optimal operational envelope.
+3. `../results/plots/baseline_tradeoff_scatter.png`: $\mathrm{NO}_x$ vs. total unburnt fuel slip scatter trade-off.
+4. `../results/plots/rop_u_curve_pathway_mechanism.png`: Three-panel kinetic figure demonstrating thermal $\mathrm{NO}$ suppression in Stage 1 vs. amine radical carryover and secondary oxidation surge in Stage 2.
+5. `../results/plots/rop_top_no_reactions_stage1_vs_stage2.png`: Bar chart decomposition of top positive and negative elementary $\mathrm{NO}$ reactions in both stages across the 3 regimes.
+6. `../results/plots/reaction_path_phi1_1p*.png`: Graphviz directional nitrogen flux diagrams for Stage 1 and Stage 2 across $\phi_1 = 1.0, 1.3, 1.8$.
 
 ---
 

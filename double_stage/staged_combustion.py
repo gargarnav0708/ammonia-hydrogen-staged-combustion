@@ -1,8 +1,9 @@
 from typing import Any
+from pathlib import Path
 import numpy as np
 import cantera as ct
 
-MECH = "TamaokiNH3.yaml"
+MECH = str(Path(__file__).resolve().parents[1] / "mechanisms" / "TamaokiNH3.yaml")
 T_IN = 300.0
 P_IN = 101325.0
 PHI_OVERALL = 0.9

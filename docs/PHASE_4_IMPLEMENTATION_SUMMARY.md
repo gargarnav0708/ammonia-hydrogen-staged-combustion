@@ -99,17 +99,17 @@ We modeled convective and effusion wall heat loss at realistic engine conditions
 ## Part 4: Phase 4 Deliverables & Artifacts
 
 ### Code:
-* [`staged_combustion.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/staged_combustion.py): Added `simulate_two_stage_gas_turbine` accepting $P_{\mathrm{atm}}$, $T_{\mathrm{in}}$, $U_{\mathrm{wall}}$, and $A_{\mathrm{wall}}$.
-* [`gas_turbine_regimes_analysis.py`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/gas_turbine_regimes_analysis.py): Parametric engine running pressure sweeps, preheat sweeps, and heat loss simulations.
-* [`gas_turbine_conditions.ipynb`](file:///Users/herr_ag98/Library/CloudStorage/OneDrive-IITDelhi/SEM7%20MAT/BTP/gas_turbine_conditions.ipynb): Interactive Jupyter notebook for Phase 4 analysis.
+* [`staged_combustion.py`](../double_stage/staged_combustion.py): Added `simulate_two_stage_gas_turbine` accepting $P_{\mathrm{atm}}$, $T_{\mathrm{in}}$, $U_{\mathrm{wall}}$, and $A_{\mathrm{wall}}$.
+* [`gas_turbine_regimes_analysis.py`](../double_stage/gas_turbine_regimes_analysis.py): Parametric engine running pressure sweeps, preheat sweeps, and heat loss simulations.
+* [`gas_turbine_conditions.ipynb`](../double_stage/gas_turbine_conditions.ipynb): Interactive Jupyter notebook for Phase 4 analysis.
 
 ### Datasets:
-* `pressure_sweep_results.csv`: 55 cases ($P = 1 - 30\ \mathrm{atm}$).
-* `preheat_sweep_results.csv`: 28 cases ($T_{\mathrm{in}} = 300 - 750\ \mathrm{K}$ at $10\ \mathrm{atm}$).
-* `heat_loss_sweep_results.csv`: 28 cases ($U_{\mathrm{wall}} = 0 - 3000\ \mathrm{W/m^2/K}$ at $15\ \mathrm{atm}, 650\ \mathrm{K}$).
+* `../results/pressure_sweep_results.csv`: 55 cases ($P = 1 - 30\ \mathrm{atm}$).
+* `../results/preheat_sweep_results.csv`: 28 cases ($T_{\mathrm{in}} = 300 - 750\ \mathrm{K}$ at $10\ \mathrm{atm}$).
+* `../results/heat_loss_sweep_results.csv`: 28 cases ($U_{\mathrm{wall}} = 0 - 3000\ \mathrm{W/m^2/K}$ at $15\ \mathrm{atm}, 650\ \mathrm{K}$).
 
 ### Publication Figures:
-* `plots/pressure_effect_nox_u_curve.png`: $\mathrm{NO}_x$ U-curve progression from $1\ \mathrm{atm}$ to $30\ \mathrm{atm}$.
-* `plots/pressure_no2_fraction_shift.png`: $\mathrm{NO_2} / \mathrm{NO}_x$ percentage shift under pressure.
-* `plots/preheat_flame_temperature_and_nox.png`: Thermal $\mathrm{NO}_x$ escalation under compressor discharge preheating.
-* `plots/wall_heat_loss_mitigation.png`: Impact of combustor liner cooling on $\mathrm{NO}_x$ and flame temperature.
+* `../results/plots/pressure_effect_nox_u_curve.png`: $\mathrm{NO}_x$ U-curve progression from $1\ \mathrm{atm}$ to $30\ \mathrm{atm}$.
+* `../results/plots/pressure_no2_fraction_shift.png`: $\mathrm{NO_2} / \mathrm{NO}_x$ percentage shift under pressure.
+* `../results/plots/preheat_flame_temperature_and_nox.png`: Thermal $\mathrm{NO}_x$ escalation under compressor discharge preheating.
+* `../results/plots/wall_heat_loss_mitigation.png`: Impact of combustor liner cooling on $\mathrm{NO}_x$ and flame temperature.

@@ -17,12 +17,13 @@ This script:
 
 import os
 import subprocess
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import cantera as ct
 
-from staged_combustion import (
+from double_stage.staged_combustion import (
     MECH,
     T_IN,
     P_IN,
@@ -31,6 +32,11 @@ from staged_combustion import (
     calculate_air_amounts,
     integrate_to_steady_state,
 )
+
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
+PLOTS_DIR = RESULTS_DIR / "plots"
+RESULTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(exist_ok=True)
 
 TRACKED_SPECIES = ["NH3", "H2", "NO", "NO2", "N2O", "NH2", "NH", "HNO", "N2", "O2", "OH", "H", "O"]
 
@@ -240,8 +246,8 @@ def sweep_rop_across_phi1(x_nh3: float = 0.50, tau: float = 0.060):
     df_summary = pd.DataFrame(summary_records)
     df_rxns = pd.DataFrame(reaction_progress_records)
 
-    df_summary.to_csv("rop_analysis_summary.csv", index=False)
-    df_rxns.to_csv("rop_no_reactions_by_phi1.csv", index=False)
+    df_summary.to_csv(RESULTS_DIR / "rop_analysis_summary.csv", index=False)
+    df_rxns.to_csv(RESULTS_DIR / "rop_no_reactions_by_phi1.csv", index=False)
     print("Saved rop_analysis_summary.csv and rop_no_reactions_by_phi1.csv")
     return df_summary, df_rxns
 
@@ -252,7 +258,7 @@ def generate_reaction_path_diagrams(x_nh3: float = 0.50, tau: float = 0.060):
     at the three characteristic regimes:
     phi_1 = 1.0 (Left branch), 1.3 (Valley), 1.8 (Right branch).
     """
-    os.makedirs("plots", exist_ok=True)
+    PLOTS_DIR.mkdir(exist_ok=True)
     dot_bin = "/opt/miniconda3/envs/cantera_env/bin/dot"
     cases = [
         (1.0, "phi1_1p0"),
@@ -277,8 +283,8 @@ def generate_reaction_path_diagrams(x_nh3: float = 0.50, tau: float = 0.060):
             diagram.label_threshold = 0.01
 
             dot_content = diagram.get_dot()
-            dot_file = f"plots/reaction_path_{label}_{stage_suffix}.dot"
-            png_file = f"plots/reaction_path_{label}_{stage_suffix}.png"
+            dot_file = PLOTS_DIR / f"reaction_path_{label}_{stage_suffix}.dot"
+            png_file = PLOTS_DIR / f"reaction_path_{label}_{stage_suffix}.png"
 
             with open(dot_file, "w") as f:
                 f.write(dot_content)
@@ -295,7 +301,7 @@ def generate_rop_figures(df_summary: pd.DataFrame, df_rxns: pd.DataFrame):
     """
     Generate high-impact kinetic figures explaining the U-curve.
     """
-    os.makedirs("plots", exist_ok=True)
+    PLOTS_DIR.mkdir(exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     # -------------------------------------------------------------
@@ -375,9 +381,9 @@ def generate_rop_figures(df_summary: pd.DataFrame, df_rxns: pd.DataFrame):
     ax3.legend(frameon=True, fontsize=8.5, loc="lower left")
 
     plt.tight_layout()
-    plt.savefig("plots/rop_u_curve_pathway_mechanism.png")
+    plt.savefig(PLOTS_DIR / "rop_u_curve_pathway_mechanism.png")
     plt.close()
-    print("Saved plots/rop_u_curve_pathway_mechanism.png")
+    print(f"Saved {PLOTS_DIR / 'rop_u_curve_pathway_mechanism.png'}")
 
     # -------------------------------------------------------------
     # Figure 2: Top NO Formation & Destruction Reactions Breakdown
@@ -420,9 +426,9 @@ def generate_rop_figures(df_summary: pd.DataFrame, df_rxns: pd.DataFrame):
                 ax.set_xlabel(r"$\mathrm{NO}$ Production / Consumption Rate ($\mathrm{kmol\ m^{-3}\ s^{-1}}$)", fontsize=10)
 
     plt.tight_layout()
-    plt.savefig("plots/rop_top_no_reactions_stage1_vs_stage2.png")
+    plt.savefig(PLOTS_DIR / "rop_top_no_reactions_stage1_vs_stage2.png")
     plt.close()
-    print("Saved plots/rop_top_no_reactions_stage1_vs_stage2.png")
+    print(f"Saved {PLOTS_DIR / 'rop_top_no_reactions_stage1_vs_stage2.png'}")
 
 
 if __name__ == "__main__":

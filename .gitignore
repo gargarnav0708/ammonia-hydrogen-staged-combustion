@@ -6,5 +6,5 @@ __pycache__/
 *.py[cod]
 *.png
 *.dot
-!plots/*.png
-!plots/*.dot
+!results/plots/*.png
+!results/plots/*.dot

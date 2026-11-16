@@ -15,11 +15,17 @@ This script implements:
 
 import os
 import time
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from staged_combustion import simulate_two_stage_gas_turbine
+from double_stage.staged_combustion import simulate_two_stage_gas_turbine
+
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
+PLOTS_DIR = RESULTS_DIR / "plots"
+RESULTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(exist_ok=True)
 
 
 def run_pressure_sweep(x_nh3: float = 0.50):
@@ -50,8 +56,9 @@ def run_pressure_sweep(x_nh3: float = 0.50):
     conv = (df_p["Status"] == "Converged").sum()
     print(f"Pressure sweep completed in {elapsed:.2f} s: {conv}/{total} converged.")
 
-    df_p.to_csv("pressure_sweep_results.csv", index=False)
-    print("Saved pressure_sweep_results.csv")
+    output_file = RESULTS_DIR / "pressure_sweep_results.csv"
+    df_p.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return df_p
 
 
@@ -83,8 +90,9 @@ def run_preheat_sweep(x_nh3: float = 0.50, p_atm: float = 10.0):
     conv = (df_t["Status"] == "Converged").sum()
     print(f"Preheat sweep completed in {elapsed:.2f} s: {conv}/{total} converged.")
 
-    df_t.to_csv("preheat_sweep_results.csv", index=False)
-    print("Saved preheat_sweep_results.csv")
+    output_file = RESULTS_DIR / "preheat_sweep_results.csv"
+    df_t.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return df_t
 
 
@@ -118,14 +126,15 @@ def run_wall_heat_loss_sweep(x_nh3: float = 0.50, p_atm: float = 15.0, t_in: flo
     conv = (df_u["Status"] == "Converged").sum()
     print(f"Heat loss sweep completed in {elapsed:.2f} s: {conv}/{total} converged.")
 
-    df_u.to_csv("heat_loss_sweep_results.csv", index=False)
-    print("Saved heat_loss_sweep_results.csv")
+    output_file = RESULTS_DIR / "heat_loss_sweep_results.csv"
+    df_u.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return df_u
 
 
 def generate_phase4_plots(df_p: pd.DataFrame, df_t: pd.DataFrame, df_u: pd.DataFrame):
     """Generate high-impact research figures for Phase 4."""
-    os.makedirs("plots", exist_ok=True)
+    PLOTS_DIR.mkdir(exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     # -------------------------------------------------------------
@@ -148,9 +157,9 @@ def generate_phase4_plots(df_p: pd.DataFrame, df_t: pd.DataFrame, df_u: pd.DataF
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend(frameon=True, fontsize=10, loc="upper right")
     plt.tight_layout()
-    plt.savefig("plots/pressure_effect_nox_u_curve.png")
+    plt.savefig(PLOTS_DIR / "pressure_effect_nox_u_curve.png")
     plt.close()
-    print("Saved plots/pressure_effect_nox_u_curve.png")
+    print(f"Saved {PLOTS_DIR / 'pressure_effect_nox_u_curve.png'}")
 
     # -------------------------------------------------------------
     # Plot 2: Pressure-Induced NO2 Fraction Shift (HO2 recombination)
@@ -171,9 +180,9 @@ def generate_phase4_plots(df_p: pd.DataFrame, df_t: pd.DataFrame, df_u: pd.DataF
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend(frameon=True, fontsize=10, loc="upper right")
     plt.tight_layout()
-    plt.savefig("plots/pressure_no2_fraction_shift.png")
+    plt.savefig(PLOTS_DIR / "pressure_no2_fraction_shift.png")
     plt.close()
-    print("Saved plots/pressure_no2_fraction_shift.png")
+    print(f"Saved {PLOTS_DIR / 'pressure_no2_fraction_shift.png'}")
 
     # -------------------------------------------------------------
     # Plot 3: Inlet Preheat Temperature Escalation (300 to 750 K at 10 atm)
@@ -199,9 +208,9 @@ def generate_phase4_plots(df_p: pd.DataFrame, df_t: pd.DataFrame, df_u: pd.DataF
     ax1.grid(True, linestyle="--", alpha=0.5)
     ax1.legend(frameon=True, fontsize=9.5, loc="upper right")
     plt.tight_layout()
-    plt.savefig("plots/preheat_flame_temperature_and_nox.png")
+    plt.savefig(PLOTS_DIR / "preheat_flame_temperature_and_nox.png")
     plt.close()
-    print("Saved plots/preheat_flame_temperature_and_nox.png")
+    print(f"Saved {PLOTS_DIR / 'preheat_flame_temperature_and_nox.png'}")
 
     # -------------------------------------------------------------
     # Plot 4: Combustor Liner Wall Heat Loss Mitigation
@@ -234,9 +243,9 @@ def generate_phase4_plots(df_p: pd.DataFrame, df_t: pd.DataFrame, df_u: pd.DataF
         y=0.98,
     )
     plt.tight_layout()
-    plt.savefig("plots/wall_heat_loss_mitigation.png")
+    plt.savefig(PLOTS_DIR / "wall_heat_loss_mitigation.png")
     plt.close()
-    print("Saved plots/wall_heat_loss_mitigation.png")
+    print(f"Saved {PLOTS_DIR / 'wall_heat_loss_mitigation.png'}")
 
 
 if __name__ == "__main__":

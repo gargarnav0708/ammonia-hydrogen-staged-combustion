@@ -12,12 +12,13 @@ This script:
 
 import os
 import time
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import cantera as ct
 
-from staged_combustion import (
+from double_stage.staged_combustion import (
     MECH,
     T_IN,
     P_IN,
@@ -25,6 +26,11 @@ from staged_combustion import (
     AIR,
     integrate_to_steady_state,
 )
+
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
+PLOTS_DIR = RESULTS_DIR / "plots"
+RESULTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(exist_ok=True)
 
 TRACKED_SPECIES = ["NH3", "H2", "NO", "NO2", "N2O"]
 
@@ -176,8 +182,9 @@ def run_single_stage_grid():
     conv_count = (df_single["Status"] == "Converged").sum()
     print(f"Single-stage sweep completed in {elapsed:.2f} s: {conv_count}/{len(df_single)} converged.")
 
-    df_single.to_csv("single_stage_results.csv", index=False)
-    print("Saved single_stage_results.csv")
+    output_file = RESULTS_DIR / "single_stage_results.csv"
+    df_single.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return df_single
 
 
@@ -186,9 +193,9 @@ def compare_with_staged_combustion(df_single: pd.DataFrame):
     Merge single-stage baseline with existing two-stage results and compute
     staging benefit metrics.
     """
-    staged_file = "staged_combustion_results_full.csv"
-    if not os.path.exists(staged_file):
-        staged_file = "staged_combustion_results.csv"
+    staged_file = RESULTS_DIR / "staged_combustion_results_full.csv"
+    if not staged_file.exists():
+        staged_file = RESULTS_DIR / "staged_combustion_results.csv"
 
     print(f"Loading staged results from {staged_file}...")
     df_staged = pd.read_csv(staged_file)
@@ -220,14 +227,15 @@ def compare_with_staged_combustion(df_single: pd.DataFrame):
     merged["Delta_NH3_slip_ppm"] = merged["NH3_slip_ppm"] - merged["NH3_single_slip_ppm"]
     merged["Delta_H2_slip_ppm"] = merged["H2_slip_ppm"] - merged["H2_single_slip_ppm"]
 
-    merged.to_csv("staged_vs_single_stage_comparison.csv", index=False)
-    print("Saved staged_vs_single_stage_comparison.csv")
+    output_file = RESULTS_DIR / "staged_vs_single_stage_comparison.csv"
+    merged.to_csv(output_file, index=False)
+    print(f"Saved {output_file}")
     return merged
 
 
 def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
     """Generate publication-ready baseline comparison plots."""
-    os.makedirs("plots", exist_ok=True)
+    PLOTS_DIR.mkdir(exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     # -------------------------------------------------------------
@@ -290,9 +298,9 @@ def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend(frameon=True, fontsize=9, loc="upper right")
     plt.tight_layout()
-    plt.savefig("plots/baseline_nox_comparison.png")
+    plt.savefig(PLOTS_DIR / "baseline_nox_comparison.png")
     plt.close()
-    print("Saved plots/baseline_nox_comparison.png")
+    print(f"Saved {PLOTS_DIR / 'baseline_nox_comparison.png'}")
 
     # -------------------------------------------------------------
     # Plot 2: 2D Contour of Staging Benefit (% NOx Reduction)
@@ -327,9 +335,9 @@ def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
         pad=12,
     )
     plt.tight_layout()
-    plt.savefig("plots/staging_benefit_heatmap.png")
+    plt.savefig(PLOTS_DIR / "staging_benefit_heatmap.png")
     plt.close()
-    print("Saved plots/staging_benefit_heatmap.png")
+    print(f"Saved {PLOTS_DIR / 'staging_benefit_heatmap.png'}")
 
     # -------------------------------------------------------------
     # Plot 3: Scatter Trade-off Comparison: NOx vs Fuel Slip
@@ -370,9 +378,9 @@ def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
     ax.legend(frameon=True, loc="upper right")
     plt.tight_layout()
-    plt.savefig("plots/baseline_tradeoff_scatter.png")
+    plt.savefig(PLOTS_DIR / "baseline_tradeoff_scatter.png")
     plt.close()
-    print("Saved plots/baseline_tradeoff_scatter.png")
+    print(f"Saved {PLOTS_DIR / 'baseline_tradeoff_scatter.png'}")
 
 
 if __name__ == "__main__":
