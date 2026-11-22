@@ -41,7 +41,7 @@ This repository contains the complete research program, executing all four phase
 * **Progressive Finite Dilution:** Replacing instantaneous air addition ($N=1$) with 5 progressive dilution stages ($N=5$) drops final $\mathrm{NO}_x$ at $\phi_1 = 2.0$ from **$3693\ \mathrm{ppm}$ to $433\ \mathrm{ppm}$ ($88.3\%$ cut!)** by enabling in-situ Thermal DeNOx in intermediate sub-rich stages.
 
 ### 4. Phase 4: Gas Turbine Combustor Regimes
-* **Elevated Pressure ($1 - 30\ \mathrm{atm}$):** High pressure shifts the low-$\mathrm{NO}_x$ valley from $\phi_1 = 1.30$ down to $\phi_1 = 1.10$, suppresses near-stoichiometric prompt $\mathrm{NO}_x$ by $61.5\%$, and increases the $\mathrm{NO_2} / \mathrm{NO}_x$ ratio due to accelerated third-body $\mathrm{HO_2}$ radical recombination.
+* **Elevated Pressure ($1 - 30\ \mathrm{atm}$):** High pressure shifts the low $NOx$ valley from $\phi_1 = 1.30$ down to $\phi_1 = 1.10$, suppresses near-stoichiometric prompt $\mathrm{NO}_x$ by $61.5\%$, and increases the $\mathrm{NO_2} / \mathrm{NO}_x$ ratio due to accelerated third-body $\mathrm{HO_2}$ radical recombination.
 * **Preheat Escalation ($300 - 750\ \mathrm{K}$):** Higher inlet air temperatures raise flame temperatures by $\approx 100\ \mathrm{K}$ per $150\ \mathrm{K}$ preheat, accelerating thermal $\mathrm{NO}_x$; staging remains vital to prevent excessive emissions.
 * **Combustor Liner Cooling:** Liner heat loss ($U = 3000\ \mathrm{W/m^2/K}$) lowers flame temperatures by $\approx 60\ \mathrm{K}$, cutting $\mathrm{NO}_x$ by over **$430\ \mathrm{ppm}$** without penalizing burnout ($<0.05\ \mathrm{ppm}$ unburnt fuel slip).
 
