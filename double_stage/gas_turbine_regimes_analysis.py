@@ -171,7 +171,7 @@ def generate_phase4_plots(df_p: pd.DataFrame, df_t: pd.DataFrame, df_u: pd.DataF
         ax.plot(sub["Phi_1"], sub["NO2_ratio"] * 100, "-s", color=col, linewidth=2.0, label=f"P = {p_atm:.0f} atm", markersize=5)
 
     ax.set_xlabel(r"Primary Equivalence Ratio $\phi_1$", fontsize=12, fontweight="bold")
-    ax.set_ylabel(r"$\mathrm{NO_2} / \mathrm{NO}_x$ Ratio (\%)", fontsize=12, fontweight="bold")
+    ax.set_ylabel(r"$\mathrm{NO_2} / \mathrm{NO}_x$ Ratio (%)", fontsize=12, fontweight="bold")
     ax.set_title(
         r"High-Pressure Shift in $\mathrm{NO_2}$ Partitioning" + "\n(Driven by accelerated $\\mathrm{H + O_2 + M \\Leftrightarrow HO_2 + M}$ recombination)",
         fontsize=12,

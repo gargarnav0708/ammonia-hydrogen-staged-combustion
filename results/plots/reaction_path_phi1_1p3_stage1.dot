@@ -1,18 +1,42 @@
 digraph reaction_paths {
 center=1;
-s13 -> s14[fontname="Helvetica", penwidth=3.08, arrowsize=1.54, color="0.7, 0.521, 0.9"
-, label=" 0.0208"];
-s14 -> s15[fontname="Helvetica", penwidth=2.67, arrowsize=1.34, color="0.7, 0.512, 0.9"
-, label=" 0.0122"];
-s15 -> s12[fontname="Helvetica", penwidth=3.01, arrowsize=1.51, color="0.7, 0.519, 0.9"
-, label=" 0.0192"];
-s12 -> s17[fontname="Helvetica", penwidth=3.19, arrowsize=1.6, color="0.7, 0.524, 0.9"
-, label=" 0.0242"];
+s13 -> s14[fontname="Helvetica", penwidth=5.84, arrowsize=2.92, color="0.7, 1.36, 0.9"
+, label=" 0.859"];
+s14 -> s15[fontname="Helvetica", penwidth=5.3, arrowsize=2.65, color="0.7, 1, 0.9"
+, label=" 0.503"];
+s14 -> s2[fontname="Helvetica", penwidth=2.28, arrowsize=1.14, color="0.7, 0.526, 0.9"
+, label=" 0.0263"];
+s15 -> s19[fontname="Helvetica", penwidth=4.19, arrowsize=2.1, color="0.7, 0.671, 0.9"
+, label=" 0.171"];
+s15 -> s12[fontname="Helvetica", penwidth=5.76, arrowsize=2.88, color="0.7, 1.29, 0.9"
+, label=" 0.792"];
+s15 -> s17[fontname="Helvetica", penwidth=2.88, arrowsize=1.44, color="0.7, 0.547, 0.9"
+, label=" 0.0473"];
+s15 -> s18[fontname="Helvetica", penwidth=3.73, arrowsize=1.86, color="0.7, 0.608, 0.9"
+, label=" 0.108"];
+s19 -> s17[fontname="Helvetica", penwidth=2.77, arrowsize=1.39, color="0.7, 0.543, 0.9"
+, label=" 0.0427"];
+s12 -> s2[fontname="Helvetica", penwidth=3.96, arrowsize=1.98, color="0.7, 0.636, 0.9"
+, label=" 0.136"];
+s12 -> s17[fontname="Helvetica", penwidth=6, arrowsize=3, color="0.7, 1.5, 0.9"
+, label=" 1"];
+s17 -> s2[fontname="Helvetica", penwidth=3.96, arrowsize=1.98, color="0.7, 0.636, 0.9"
+, label=" 0.136"];
+s16 -> s2[fontname="Helvetica", penwidth=4.28, arrowsize=2.14, color="0.7, 0.686, 0.9"
+, label=" 0.186"];
+s18 -> s2[fontname="Helvetica", penwidth=3.04, arrowsize=1.52, color="0.7, 0.555, 0.9"
+, label=" 0.0554"];
+s17 -> s18[fontname="Helvetica", penwidth=3.73, arrowsize=1.86, color="0.7, 0.608, 0.9"
+, label=" 0.108"];
+s2 [ fontname="Helvetica", label="N2"];
 s12 [ fontname="Helvetica", label="N"];
 s13 [ fontname="Helvetica", label="NH3"];
 s14 [ fontname="Helvetica", label="NH2"];
 s15 [ fontname="Helvetica", label="NH"];
+s16 [ fontname="Helvetica", label="NNH"];
 s17 [ fontname="Helvetica", label="NO"];
- label = "Scale = 1\l Nitrogen Reaction Paths: Stage 1 (phi_1=1.3, x_NH3=50%)";
+s18 [ fontname="Helvetica", label="N2O"];
+s19 [ fontname="Helvetica", label="HNO"];
+ label = "Scale = 0.024\l Nitrogen Reaction Paths: Stage 1 (phi_1=1.3, x_NH3=50%)";
  fontname = "Helvetica";
 }

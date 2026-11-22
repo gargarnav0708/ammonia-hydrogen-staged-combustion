@@ -171,6 +171,18 @@ a, b2 = ps[ps.P_atm == 1.0].set_index("Phi_1").NOx_ppm, ps[ps.P_atm == 30.0].set
 tt = stats.ttest_rel(a, b2)
 add("Phase 4", "Paired t-test 1 atm vs 30 atm", "NOx_ppm", len(a), round(tt[0], 3), tt[1],
     f"mean diff={(a-b2).mean():.1f} ppm", str(np.round(boot_ci((a - b2).values), 1)))
+lev = stats.levene(a.values, b2.values)
+add("Phase 4", "Levene variance test 1 atm vs 30 atm", "NOx_ppm", len(a) + len(b2), round(lev.statistic, 3), lev.pvalue,
+    f"SD collapse: {a.std():.0f} -> {b2.std():.0f} ppm (-{(1-b2.std()/a.std())*100:.1f}%)")
+for bname, mask in [("valley 1.2<=phi1<=1.4", (ps.Phi_1 >= 1.2) & (ps.Phi_1 <= 1.4)),
+                    ("right branch phi1>=1.7", ps.Phi_1 >= 1.7)]:
+    sub = ps[mask]
+    rs = stats.spearmanr(sub.P_atm, sub.NOx_ppm)
+    add("Phase 4", f"Spearman rho(P_atm, NOx), {bname}", "NOx_ppm", len(sub), round(rs[0], 3), rs[1],
+        f"sign reversal across branches")
+rs_no2 = stats.spearmanr(ps.P_atm, ps.NO2_ratio)
+add("Phase 4", "Spearman rho(P_atm, NO2/NOx)", "NO2_ratio", len(ps), round(rs_no2[0], 3), rs_no2[1],
+    f"mean ratio: {ps[ps.P_atm==1].NO2_ratio.mean()*100:.3f}% -> {ps[ps.P_atm==30].NO2_ratio.mean()*100:.3f}%")
 trend(pd.read_csv(RES / "preheat_sweep_results.csv"), "T_in_K", "preheat")
 hl = pd.read_csv(RES / "heat_loss_sweep_results.csv")
 trend(hl, "U_wall_W_m2K", "liner cooling")

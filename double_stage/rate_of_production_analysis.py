@@ -220,20 +220,19 @@ def sweep_rop_across_phi1(x_nh3: float = 0.50, tau: float = 0.060):
             "Net_NO_prod_rate_stage2": w_dot_no_s2,
         })
 
-        # Track specific key elementary reaction rates in Stage 1 and Stage 2
-        # We search by reaction string or reactant/product pairs
+        # Track all NO-participating reactions plus key NH3/NH2 oxidation initiation steps
+        k_no = g1.species_index("NO")
         for stage_name, gas_obj in [("Stage 1", g1), ("Stage 2", g2)]:
             q_net = gas_obj.net_rates_of_progress
+            nu_no_all = gas_obj.product_stoich_coeffs[k_no, :] - gas_obj.reactant_stoich_coeffs[k_no, :]
             for rxn_i in range(gas_obj.n_reactions):
                 eq = gas_obj.reaction(rxn_i).equation
-                # Focus on influential nitrogen pathways
+                nu_no = nu_no_all[rxn_i]
                 interesting_signatures = [
                     "NH2 + NO", "N + NO", "N2 + O", "NH + O2", "NH2 + O2",
                     "HNO + OH", "HNO + M", "NH2 + OH", "NH3 + OH"
                 ]
-                if any(sig in eq for sig in interesting_signatures):
-                    k_no = gas_obj.species_index("NO")
-                    nu_no = gas_obj.product_stoich_coeffs[k_no, rxn_i] - gas_obj.reactant_stoich_coeffs[k_no, rxn_i]
+                if nu_no != 0 or any(sig in eq for sig in interesting_signatures):
                     reaction_progress_records.append({
                         "Phi_1": round(phi_1, 2),
                         "Stage": stage_name,
@@ -276,11 +275,12 @@ def generate_reaction_path_diagrams(x_nh3: float = 0.50, tau: float = 0.060):
         ]:
             diagram = ct.ReactionPathDiagram(gas_obj, "N")
             diagram.title = f"Nitrogen Reaction Paths: {stage_name} (phi_1={phi_1:.1f}, x_NH3={x_nh3*100:.0f}%)"
-            diagram.threshold = 0.005  # Show paths carrying >= 0.5% of flux
-            diagram.scale = 1.0
-            diagram.bold_threshold = 0.10
-            diagram.normal_threshold = 0.02
-            diagram.label_threshold = 0.01
+            diagram.scale = -1  # Normalize fluxes to maximum net flux in that stage
+            diagram.threshold = 0.02  # Show paths carrying >= 2% of peak N flux
+            diagram.bold_threshold = 0.15
+            diagram.normal_threshold = 0.05
+            diagram.label_threshold = 0.02
+            diagram.show_details = False
 
             dot_content = diagram.get_dot()
             dot_file = PLOTS_DIR / f"reaction_path_{label}_{stage_suffix}.dot"
@@ -354,15 +354,15 @@ def generate_rop_figures(df_summary: pd.DataFrame, df_rxns: pd.DataFrame):
     # Filter for Stage 2 prominent reactions
     s2_rxns = df_rxns[df_rxns["Stage"] == "Stage 2"]
 
-    # Select representative reactions
-    # 1. Thermal DeNOx: NH2 + NO <=> N2 + H2O
-    denox_data = s2_rxns[s2_rxns["Equation"].str.contains(r"NH2 \+ NO <=> N2 \+ H2O", regex=True)]
+    # Select representative reactions (product order in TamaokiNH3.yaml is H2O + N2 and H2O + NO)
+    # 1. Thermal DeNOx: NH2 + NO <=> H2O + N2
+    denox_data = s2_rxns[s2_rxns["Equation"].str.contains(r"NH2 \+ NO <=> (?:N2 \+ H2O|H2O \+ N2)", regex=True)]
     # 2. DeNOx radical: NH2 + NO <=> NNH + OH
     denox2_data = s2_rxns[s2_rxns["Equation"].str.contains(r"NH2 \+ NO <=> NNH \+ OH", regex=True)]
     # 3. Intermediate oxidation: NH + O2 <=> NO + OH
     nho2_data = s2_rxns[s2_rxns["Equation"].str.contains(r"NH \+ O2 <=> NO \+ OH", regex=True)]
-    # 4. HNO oxidation: HNO + OH <=> NO + H2O
-    hno_data = s2_rxns[s2_rxns["Equation"].str.contains(r"HNO \+ OH <=> NO \+ H2O", regex=True)]
+    # 4. HNO oxidation: HNO + OH <=> H2O + NO
+    hno_data = s2_rxns[s2_rxns["Equation"].str.contains(r"HNO \+ OH <=> (?:NO \+ H2O|H2O \+ NO)", regex=True)]
 
     if not denox_data.empty:
         ax3.plot(denox_data["Phi_1"], denox_data["NO_contribution_kmol_m3_s"], "g-o", linewidth=2.2, label=r"$\mathrm{NH_2 + NO \Leftrightarrow N_2 + H_2O}$ (DeNOx)")

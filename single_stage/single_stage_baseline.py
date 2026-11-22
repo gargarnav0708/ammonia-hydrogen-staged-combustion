@@ -288,10 +288,10 @@ def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
                 label=rf"Staged $\phi_1 = {phi1:.1f}$",
             )
 
-    ax.set_xlabel(r"$\mathrm{NH_3}$ Mole Fraction in Fuel Blend (\%)", fontsize=12, fontweight="bold")
+    ax.set_xlabel(r"$\mathrm{NH_3}$ Mole Fraction in Fuel Blend (%)", fontsize=12, fontweight="bold")
     ax.set_ylabel(r"Final $\mathrm{NO}_x$ Emissions (ppm)", fontsize=12, fontweight="bold")
     ax.set_title(
-        r"$\mathrm{NO}_x$ Emissions: Two-Stage Staged Combustion vs. Single-Stage Baseline" + f"\n(Overall $\phi = 0.9$, $\\tau = {tau_ref:.0f}\\ \\mathrm{{ms}}$)",
+        r"$\mathrm{NO}_x$ Emissions: Two-Stage Staged Combustion vs. Single-Stage Baseline" + f"\n(Overall $\\phi = 0.9$, $\\tau = {tau_ref:.0f}\\ \\mathrm{{ms}}$)",
         fontsize=13,
         pad=12,
     )
@@ -317,7 +317,7 @@ def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
     levels = np.linspace(-150, 80, 24)
     cs = ax.contourf(X_grid, Y_grid, Z_grid, levels=levels, cmap="RdYlBu", extend="both")
     cbar = plt.colorbar(cs, ax=ax)
-    cbar.set_label(r"Staging Benefit: $\mathrm{NO}_x$ Reduction vs. Baseline (\%)", fontsize=11, fontweight="bold")
+    cbar.set_label(r"Staging Benefit: $\mathrm{NO}_x$ Reduction vs. Baseline (%)", fontsize=11, fontweight="bold")
 
     # Overlay zero-line (where staged equals single stage)
     cs_zero = ax.contour(X_grid, Y_grid, Z_grid, levels=[0.0], colors="black", linewidths=2.5, linestyles="--")
@@ -327,7 +327,7 @@ def generate_baseline_plots(merged: pd.DataFrame, df_single: pd.DataFrame):
     cs_opt = ax.contour(X_grid, Y_grid, Z_grid, levels=[40.0, 60.0], colors="green", linewidths=1.8, linestyles="-")
     ax.clabel(cs_opt, inline=True, fmt=r"%d%% Red.", fontsize=9)
 
-    ax.set_xlabel(r"$\mathrm{NH_3}$ Fraction in Fuel (\%)", fontsize=12, fontweight="bold")
+    ax.set_xlabel(r"$\mathrm{NH_3}$ Fraction in Fuel (%)", fontsize=12, fontweight="bold")
     ax.set_ylabel(r"Primary Equivalence Ratio $\phi_1$", fontsize=12, fontweight="bold")
     ax.set_title(
         r"Two-Stage Combustion Advantage Map over Single-Stage Baseline" + f"\n(Green = 40-70% $\\mathrm{{NO}}_x$ Cut; Red = Staging Penalty; $\\tau = {tau_ref:.0f}\\ \\mathrm{{ms}}$)",

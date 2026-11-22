@@ -38,6 +38,10 @@ Phase 3,Spearman rho (Tau_1_ms),NOx_final_ppm,125,-0.235,0.008427761601030752,,
 Phase 3,Spearman rho (Tau_2_ms),NOx_final_ppm,125,-0.049,0.5904268165603794,,
 Phase 4,One-sample t on per-phi1 Spearman rho (pressure),NOx_ppm,11,-0.41,0.6903685143965842,mean rho=-0.100; mean slope=-13.38 ppm/unit,[-0.545  0.346]
 Phase 4,Paired t-test 1 atm vs 30 atm,NOx_ppm,11,1.414,0.18779624726987984,mean diff=440.1 ppm,[ -90.8 1068.8]
+Phase 4,Levene variance test 1 atm vs 30 atm,NOx_ppm,22,7.536,0.01247767196393685,SD collapse: 1109 -> 291 ppm (-73.7%),
+Phase 4,"Spearman rho(P_atm, NOx), valley 1.2<=phi1<=1.4",NOx_ppm,15,0.666,0.006765022194102445,sign reversal across branches,
+Phase 4,"Spearman rho(P_atm, NOx), right branch phi1>=1.7",NOx_ppm,20,-0.766,8.115401513997071e-05,sign reversal across branches,
+Phase 4,"Spearman rho(P_atm, NO2/NOx)",NO2_ratio,55,0.988,3.137334855376443e-44,mean ratio: 0.032% -> 0.209%,
 Phase 4,"Exact sign test, same monotone direction at every phi1 (preheat)",NOx_ppm,7,,0.015625,mean rho=1.000; mean slope=6.118 ppm/unit,[1. 1.]
 Phase 4,"Exact sign test, same monotone direction at every phi1 (liner cooling)",NOx_ppm,7,,0.015625,mean rho=-1.000; mean slope=-0.1287 ppm/unit,[-1. -1.]
 Phase 4,Paired t-test adiabatic vs U=3000,NOx_ppm,7,17.773,2.0383678125961748e-06,mean diff=386.1 ppm,[343.8 421.9]

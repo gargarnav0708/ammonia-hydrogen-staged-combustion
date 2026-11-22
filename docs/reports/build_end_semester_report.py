@@ -1,8 +1,16 @@
 """Build the end-semester B.Tech project report (DOCX) from repository results.
 
-Run:  python docs/reports/build_end_semester_report.py
+Follows IIT Delhi BTP formatting conventions (Times New Roman 12 pt, justified body
+text, centered equations with right-justified equation numbers, italicized variables,
+Introduction and Conclusion subsections per chapter, List of Figures, List of Tables,
+ordered IEEE references, and dynamic Figure/Table/Equation numbering).
+
+Run:    python docs/reports/build_end_semester_report.py
 Output: docs/reports/BTP_End_Semester_Report.docx
 """
+from __future__ import annotations
+
+import re
 from pathlib import Path
 
 import matplotlib
@@ -11,24 +19,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from docx import Document
-from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[2]
 RES = ROOT / "results"
 PLOTS = RES / "plots"
-MID_IMG = ROOT / "docs" / "reports" / "mid_sem_figures"   # figures extracted from the mid-sem report
+MID_IMG = ROOT / "docs" / "reports" / "mid_sem_figures"
 OUT = ROOT / "docs" / "reports" / "BTP_End_Semester_Report.docx"
 
 doc = Document()
 sec = doc.sections[0]
-sec.page_width, sec.page_height = Cm(21), Cm(29.7)
+sec.page_width, sec.page_height = Cm(21.0), Cm(29.7)
 sec.left_margin = sec.right_margin = Cm(2.5)
 sec.top_margin = sec.bottom_margin = Cm(2.5)
+TEXT_WIDTH_CM = 16.0
 
 st = doc.styles["Normal"]
 st.font.name = "Times New Roman"
@@ -36,67 +44,121 @@ st.font.size = Pt(12)
 st.element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
 st.paragraph_format.line_spacing = 1.3
 st.paragraph_format.space_after = Pt(6)
-for name, size in [("Heading 1", 18), ("Heading 2", 14), ("Heading 3", 12)]:
+st.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+for name, size in [("Heading 1", 16), ("Heading 2", 13.5), ("Heading 3", 12)]:
     h = doc.styles[name]
     h.font.name = "Times New Roman"
     h.font.size = Pt(size)
     h.font.bold = True
-    h.font.color.rgb = None
+    h.font.color.rgb = RGBColor(0x1B, 0x36, 0x5D) if name == "Heading 1" else RGBColor(0, 0, 0)
     h.element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
+    h.paragraph_format.space_before = Pt(10 if name == "Heading 1" else 8)
+    h.paragraph_format.space_after = Pt(4)
+    h.paragraph_format.keep_with_next = True
 
-FIG = [0]
-TAB = [0]
+FIG_ENTRIES: list[tuple[int, str]] = []
+TAB_ENTRIES: list[tuple[int, str]] = []
+TOC_ENTRIES: list[tuple[int, str]] = []
+EQ_COUNT = [0]
+
+TOKEN_RE = re.compile(r"(</?(?:i|b|sub|sup|code)>)")
 
 
-def P(text, bold=False, italic=False, align=None, size=None, after=None):
+def _add_runs(p, text: str, base_bold=False, base_italic=False, size=None):
+    """Parse nested inline tags <i>, <b>, <sub>, <sup>, <code> into python-docx runs."""
+    state = {"b": base_bold, "i": base_italic, "sub": False, "sup": False, "code": False}
+    counts = {k: 0 for k in state}
+    for part in TOKEN_RE.split(text):
+        if not part:
+            continue
+        if part.startswith("<") and part.endswith(">"):
+            closing = part.startswith("</")
+            tag = part[2:-1] if closing else part[1:-1]
+            counts[tag] = max(0, counts[tag] + (-1 if closing else 1))
+            continue
+        r = p.add_run(part)
+        r.bold = base_bold or (counts["b"] > 0)
+        r.italic = base_italic or (counts["i"] > 0)
+        if counts["sub"] > 0:
+            r.font.subscript = True
+        if counts["sup"] > 0:
+            r.font.superscript = True
+        if counts["code"] > 0:
+            r.font.name = "Courier New"
+            r.font.size = Pt(10 if not size else size - 1)
+        elif size:
+            r.font.size = Pt(size)
+
+
+def P(text: str, bold=False, italic=False, align=None, size=None, after=None):
     p = doc.add_paragraph()
-    r = p.add_run(text)
-    r.bold, r.italic = bold, italic
-    if size:
-        r.font.size = Pt(size)
+    _add_runs(p, text, base_bold=bold, base_italic=italic, size=size)
     if align == "c":
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     elif align == "j":
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    elif align == "l":
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     if after is not None:
         p.paragraph_format.space_after = Pt(after)
     return p
 
 
-def J(text):
+def J(text: str):
     return P(text, align="j")
 
 
-def H(text, lvl=1):
-    return doc.add_heading(text, level=lvl)
+def H(text: str, lvl: int = 1, record_toc: bool = True):
+    h = doc.add_heading(text, level=lvl)
+    if record_toc and lvl in (1, 2):
+        TOC_ENTRIES.append((lvl, text))
+    return h
 
 
-def B(items, numbered=False):
+def B(items: list[str], numbered: bool = False):
     for it in items:
-        doc.add_paragraph(it, style="List Number" if numbered else "List Bullet")
+        p = doc.add_paragraph(style="List Number" if numbered else "List Bullet")
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        _add_runs(p, it)
 
 
-def EQ(text, num):
+def EQ(text: str) -> str:
+    """Centered equation with right-justified equation number (n) on the same line."""
+    EQ_COUNT[0] += 1
+    num = EQ_COUNT[0]
     p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(f"{text}        ({num})")
-    r.italic = True
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.tab_stops.add_tab_stop(Cm(TEXT_WIDTH_CM / 2.0), WD_TAB_ALIGNMENT.CENTER)
+    p.paragraph_format.tab_stops.add_tab_stop(Cm(TEXT_WIDTH_CM), WD_TAB_ALIGNMENT.RIGHT)
+    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_after = Pt(6)
+    p.add_run("\t")
+    _add_runs(p, text)
+    r_num = p.add_run(f"\t({num})")
+    r_num.italic = False
+    return f"({num})"
 
 
 def PB():
     doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
 
-def FIGURE(path, caption, width=14.5):
+def FIGURE(path, caption: str, width: float = 14.5) -> int:
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(path)
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.keep_with_next = True
     p.add_run().add_picture(str(path), width=Cm(width))
-    FIG[0] += 1
-    c = P(f"Figure {FIG[0]}. {caption}", italic=True, align="c", size=10.5)
-    return FIG[0]
+    num = len(FIG_ENTRIES) + 1
+    FIG_ENTRIES.append((num, caption))
+    cp = doc.add_paragraph()
+    cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cp.paragraph_format.space_after = Pt(8)
+    _add_runs(cp, f"Figure {num}. {caption}", base_italic=True, size=10.5)
+    return num
 
 
 def shade(cell, color="D9E2F3"):
@@ -108,38 +170,46 @@ def shade(cell, color="D9E2F3"):
     tcPr.append(shd)
 
 
-def TABLE(df, caption, fs=9, widths=None):
-    TAB[0] += 1
-    P(f"Table {TAB[0]}. {caption}", bold=True, align="c", size=10.5, after=3)
+def TABLE(df: pd.DataFrame, caption: str, fs: float = 9.0, widths: list[float] | None = None) -> int:
+    num = len(TAB_ENTRIES) + 1
+    TAB_ENTRIES.append((num, caption))
+    tp = doc.add_paragraph()
+    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    tp.paragraph_format.space_before = Pt(6)
+    tp.paragraph_format.space_after = Pt(3)
+    tp.paragraph_format.keep_with_next = True
+    _add_runs(tp, f"Table {num}. {caption}", base_bold=True, size=10.5)
+
     t = doc.add_table(rows=1, cols=len(df.columns))
     t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
     for i, c in enumerate(df.columns):
         cell = t.rows[0].cells[i]
         cell.text = ""
-        run = cell.paragraphs[0].add_run(str(c))
-        run.bold = True
-        run.font.size = Pt(fs)
+        _add_runs(cell.paragraphs[0], str(c), base_bold=True, size=fs)
+        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         shade(cell)
     for _, row in df.iterrows():
         cells = t.add_row().cells
         for i, v in enumerate(row):
             cells[i].text = ""
-            run = cells[i].paragraphs[0].add_run(str(v))
-            run.font.size = Pt(fs)
+            _add_runs(cells[i].paragraphs[0], str(v), size=fs)
+            cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT if i == 0 else WD_ALIGN_PARAGRAPH.CENTER
     for row in t.rows:
         for c in row.cells:
-            c.paragraphs[0].paragraph_format.space_after = Pt(0)
-            c.paragraphs[0].paragraph_format.line_spacing = 1.0
+            c.paragraphs[0].paragraph_format.space_after = Pt(1)
+            c.paragraphs[0].paragraph_format.space_before = Pt(1)
+            c.paragraphs[0].paragraph_format.line_spacing = 1.05
     if widths:
         for row in t.rows:
             for i, w in enumerate(widths):
                 row.cells[i].width = Cm(w)
-    doc.add_paragraph().paragraph_format.space_after = Pt(2)
-    return TAB[0]
+    sp = doc.add_paragraph()
+    sp.paragraph_format.space_after = Pt(4)
+    return num
 
 
-def pfmt(p):
+def pfmt(p) -> str:
     if p == "" or pd.isna(p):
         return ""
     p = float(p)
@@ -148,8 +218,19 @@ def pfmt(p):
     return f"{p:.2e}" if p < 1e-3 else f"{p:.4f}"
 
 
-def toc_field():
-    p = doc.add_paragraph()
+def insert_paragraph_before(anchor_p, text: str, left_cm: float = 0.0, bold: bool = False, size: float = 11.0):
+    np_ = anchor_p.insert_paragraph_before()
+    np_.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    np_.paragraph_format.left_indent = Cm(left_cm)
+    np_.paragraph_format.space_after = Pt(2)
+    np_.paragraph_format.line_spacing = 1.15
+    _add_runs(np_, text, base_bold=bold, size=size)
+    return np_
+
+
+def toc_field(anchor_p):
+    p = anchor_p.insert_paragraph_before()
+    p.paragraph_format.space_after = Pt(4)
     run = p.add_run()
     for kind, txt in [("begin", None), (None, 'TOC \\o "1-2" \\h \\z \\u'), ("separate", None)]:
         if kind:
@@ -161,7 +242,7 @@ def toc_field():
             el.text = txt
         run._r.append(el)
     t = OxmlElement("w:t")
-    t.text = "Right-click here and choose 'Update Field' (or press F9) to build the table of contents."
+    t.text = "[Word TOC Field \u2014 Press F9 / Update Field in Microsoft Word for exact page numbers]"
     run._r.append(t)
     end = OxmlElement("w:fldChar")
     end.set(qn("w:fldCharType"), "end")
@@ -196,10 +277,8 @@ ps = pd.read_csv(RES / "pressure_sweep_results.csv")
 pre = pd.read_csv(RES / "preheat_sweep_results.csv")
 hl = pd.read_csv(RES / "heat_loss_sweep_results.csv")
 stat = pd.read_csv(RES / "statistical_significance_summary.csv")
-eta = pd.read_csv(RES / "staged_combustion_eta_squared.csv")
-reg = pd.read_csv(RES / "staged_combustion_regression_summary.csv")
 
-# two extra figures for the statistics chapter
+# Statistics summary figure
 rng = np.random.default_rng(0)
 fig, ax = plt.subplots(1, 2, figsize=(11, 4))
 red = cmp_.NOx_reduction_pct.values
@@ -209,22 +288,25 @@ lo, hi = np.percentile(bs, [2.5, 97.5])
 ax[0].axvline(red.mean(), color="k", ls="--", label=f"mean = {red.mean():.1f}%")
 ax[0].axvspan(lo, hi, color="orange", alpha=0.5, label=f"95% bootstrap CI [{lo:.1f}, {hi:.1f}]")
 ax[0].axvline(0, color="r")
-ax[0].set_xlabel("NOx reduction by staging (%)")
+ax[0].set_xlabel(r"$\mathrm{NO}_x$ reduction by staging (%)")
 ax[0].set_ylabel("Number of matched operating points")
-ax[0].set_title("(a) Staging benefit, 469 matched cases")
+ax[0].set_title("(a) Staging benefit across 469 matched cases")
 ax[0].legend(fontsize=8)
+
 sub = stat[stat.Test.str.startswith("Type-II ANOVA") & (stat.Phase == "Main 605-case")].copy()
 sub["factor"] = sub.Test.str.extract(r"\((.*)\)")
 pv = sub.pivot(index="Quantity", columns="factor", values="Effect")
 pr = pv.apply(lambda col: col.str.extract(r"=([0-9.]+)")[0].astype(float))
 pr = pr[["NH3_frac", "Phi_1", "Tau_ms"]].loc[["T_final_K", "NOx_ppm", "H2_slip", "Delta_T_K", "Delta_NOx_ppm"]]
 x = np.arange(len(pr))
-for k, (col, c) in enumerate(zip(pr.columns, ["#4472c4", "#ed7d31", "#70ad47"])):
-    ax[1].bar(x + (k - 1) * 0.27, pr[col], 0.27, label=col, color=c)
+for k, (col, c, lab) in enumerate(zip(pr.columns, ["#4472c4", "#ed7d31", "#70ad47"],
+                                      [r"$x_{\mathrm{NH_3}}$", r"$\phi_1$", r"$\tau$"])):
+    ax[1].bar(x + (k - 1) * 0.27, pr[col], 0.27, label=lab, color=c)
 ax[1].set_xticks(x)
-ax[1].set_xticklabels(pr.index, rotation=25, fontsize=8)
-ax[1].set_ylabel("Partial R$^2$ (Type-II ANOVA)")
-ax[1].set_title("(b) Variance share of each factor")
+ax[1].set_xticklabels([r"$T_{\mathrm{final}}$", r"$\mathrm{NO}_x$", r"$\mathrm{H_2}$ slip",
+                       r"$\Delta T$", r"$\Delta \mathrm{NO}_x$"], rotation=20, fontsize=9)
+ax[1].set_ylabel("Partial $R^2$ (Type-II ANOVA)")
+ax[1].set_title("(b) Main-study variance share by factor")
 ax[1].legend(fontsize=8)
 plt.tight_layout()
 STAT_FIG1 = PLOTS / "stat_staging_benefit_and_variance_share.png"
@@ -234,8 +316,8 @@ plt.close()
 # ================================================================ TITLE PAGE
 for _ in range(2):
     P("")
-P("NUMERICAL INVESTIGATION OF TWO-STAGE NH\u2083/H\u2082 STAGED COMBUSTION", bold=True, align="c", size=20)
-P("From Idealised Perfectly Stirred Reactors to Gas-Turbine Operating Regimes: Staging Benefit, Reaction-Pathway Analysis, Reactor-Architecture Physics and Statistical Significance", align="c", size=13)
+P("NUMERICAL INVESTIGATION OF TWO-STAGE NH<sub>3</sub>/H<sub>2</sub> STAGED COMBUSTION", bold=True, align="c", size=19)
+P("Baseline Quantification, Reaction-Pathway Analysis, Reactor-Architecture Physics, Gas-Turbine Regimes, and Statistical Significance", align="c", size=12.5)
 P("")
 P("B.Tech Project Report \u2013 End Semester", bold=True, align="c", size=14)
 P("")
@@ -249,518 +331,733 @@ P("November 2026", align="c")
 PB()
 
 # ================================================================ ABSTRACT
-H("Abstract", 1)
+H("Abstract", 1, record_toc=False)
 mean_red = cmp_.NOx_reduction_pct.mean()
-J("Ammonia\u2013hydrogen (NH\u2083/H\u2082) blends are attractive carbon-free fuels, but their use in gas-turbine-type combustors "
-  "is constrained by low reactivity, unburnt fuel and, above all, fuel-bound nitrogen oxide (NO\u2093) formation. Rich\u2013lean "
-  "air staging is the standard remedy. The mid-semester work built a two-stage ideal-gas perfectly stirred reactor (PSR) "
-  "model in Cantera with the Tamaoki et al. (2024) mechanism and mapped 605 operating points (586 converged) over NH\u2083 "
-  "fraction, primary equivalence ratio \u03c6\u2081 and residence time at a fixed overall \u03c6 = 0.9. That study left four "
-  "limitations: no single-stage baseline, no kinetic explanation of the non-monotonic (U-shaped) NO\u2093 response, "
-  "idealised reactor architecture (equal residence times, instantaneous secondary mixing) and idealised conditions "
-  "(1 atm, 300 K, adiabatic).")
-J(f"This report removes each limitation in four phases and then tests every conclusion statistically. "
-  f"(1) A matched single-stage baseline over 469 comparable operating points shows that staging reduces NO\u2093 by "
-  f"{mean_red:.1f}% on average (95% bootstrap CI {lo:.1f}\u2013{hi:.1f}%, up to 90.4%); staging wins in 93.6% of cases "
-  "(sign test p < 10\u207b\u2079\u2070), the exception being pure H\u2082 where there is no fuel nitrogen to suppress. "
-  "(2) Rate-of-production and reaction-pathway analysis shows the U-curve is the exact superposition of a monotonic "
-  "fall of Stage-1 NO\u2093 (4400 \u2192 29 ppm; thermal NO shutdown and NH\u2082/NH + NO de-NO\u2093 steps) and a monotonic "
-  "rise of Stage-2 NO\u2093 generation (\u2212191 \u2192 +3586 ppm; carry-over of NH\u2082 from 5 to 86 ppm and unburnt NH\u2083 "
-  "from 22 to 8560 ppm oxidised via HNO + OH and NH + O\u2082). "
-  "(3) Decoupling residence times shows that a *longer*, not shorter, rich residence time lowers NH\u2082 carry-over "
-  "(\u03c6\u2081 = 2.0: 282 \u2192 157 ppm for \u03c4\u2081 = 10 \u2192 50 ms) and NO\u2093; replacing instantaneous secondary mixing with five "
-  "progressive dilution stages cuts right-branch NO\u2093 from 3693 to 433 ppm (\u221288.3%). "
-  "(4) At gas-turbine conditions, pressure moves the low-NO\u2093 valley from \u03c6\u2081 = 1.3 (1 atm) to 1.1 (\u226510 atm) and raises the "
-  "NO\u2082/NO\u2093 ratio about 6.6-fold (1 \u2192 30 atm), air preheat raises NO\u2093 by about 6 ppm per kelvin of inlet temperature, and "
-  "liner cooling (U = 3000 W m\u207b\u00b2 K\u207b\u00b9) lowers NO\u2093 by 386 ppm on average (paired p = 2\u00d710\u207b\u2076). "
-  "Statistical testing (ANOVA, non-parametric paired tests, bootstrap confidence intervals, effect sizes) confirms that "
-  "the staging benefit, the U-shape, the mixing benefit and the thermal effects are significant, while it also shows "
-  "that the net pressure effect is not significant when pooled over \u03c6\u2081 because it changes sign between branches.")
-J("The work gives a quantified, mechanistically explained and statistically supported design map for NH\u2083/H\u2082 staged "
-  "combustors and a reproducible open code base. All results are zero-dimensional and mechanism-dependent; they are "
-  "design guidance, not predictions of a specific burner.")
+J("Ammonia\u2013hydrogen (NH<sub>3</sub>/H<sub>2</sub>) blends are promising carbon-free fuels for stationary power and industrial heat, "
+  "but practical deployment in gas-turbine combustors is constrained by low ammonia reactivity, residual fuel slip, and "
+  "elevated fuel-bound nitrogen oxide (NO<sub>x</sub>) emissions. Rich\u2013lean air staging is the primary architectural strategy "
+  "to resolve this trade-off. In the mid-semester study, a two-stage ideal-gas perfectly stirred reactor (PSR) network "
+  "was constructed in Cantera using the 33-species, 228-reaction Tamaoki et al. (2024) mechanism and swept across 605 "
+  "operating points (586 converged) in NH<sub>3</sub> mole fraction (<i>x</i><sub>NH3</sub> = 0.0\u20131.0), primary equivalence ratio "
+  "(<i>\u03c6</i><sub>1</sub> = 1.0\u20132.0), and residence time (<i>\u03c4</i> = 20\u2013100 ms) at fixed overall equivalence ratio <i>\u03c6</i> = 0.9, "
+  "300 K, and 1 atm. That baseline work left four open gaps: no single-stage baseline comparison, no elementary chemical "
+  "kinetic explanation of the non-monotonic U-shaped NO<sub>x</sub> curve, idealised reactor assumptions (equal stage "
+  "residence times and instantaneous secondary air mixing), and ambient adiabatic boundary conditions.")
+J(f"This end-semester report closes all four gaps across four structured engineering phases and establishes formal "
+  f"statistical significance for every conclusion. First, an identical-condition single-stage PSR baseline over 469 "
+  f"matched operating points proves that staging lowers NO<sub>x</sub> by {mean_red:.1f}% on average (95% bootstrap confidence "
+  f"interval [CI]: {lo:.1f}\u2013{hi:.1f}%, up to 90.4%), outperforming single-stage combustion in 93.6% of cases (binomial sign "
+  "test <i>p</i> = 2.81 \u00d7 10<sup>\u221294</sup>); staging penalises only pure H<sub>2</sub> where no fuel nitrogen is present to suppress. "
+  "Second, elementary rate-of-production (ROP) and nitrogen-flux pathway analyses demonstrate that the U-shaped NO<sub>x</sub> "
+  "response is the exact superposition of a monotonic Stage-1 NO<sub>x</sub> decline (4400 \u2192 29 ppm, Spearman <i>\u03c1</i> = \u22121.0, "
+  "exact <i>p</i> = 5.01 \u00d7 10<sup>\u22128</sup>) driven by oxygen depletion and thermal de-NO<sub>x</sub> (NH<sub>2</sub>/NH + NO), and a monotonic "
+  "Stage-2 NO<sub>x</sub> surge (\u2212191 \u2192 +3586 ppm, <i>\u03c1</i> = +1.0) fuelled by Stage-1 carry-over of NH<sub>2</sub> (5.2 \u2192 85.7 ppm) and "
+  "unburnt NH<sub>3</sub> (21.9 \u2192 8558 ppm) that oxidise in Stage 2 predominantly via HNO + OH \u21c4 H<sub>2</sub>O + NO (24\u00d7 higher at "
+  "<i>\u03c6</i><sub>1</sub> = 2.0 than at <i>\u03c6</i><sub>1</sub> = 1.0) and NH + O<sub>2</sub> \u21c4 NO + OH. Third, decoupling stage residence times "
+  "(<i>\u03c4</i><sub>1</sub> \u2260 <i>\u03c4</i><sub>2</sub>) shows that a longer, rather than shorter, rich primary residence time reduces NH<sub>2</sub> "
+  "carry-over (from 282 to 157 ppm at <i>\u03c6</i><sub>1</sub> = 2.0 across <i>\u03c4</i><sub>1</sub> = 10 \u2192 50 ms) and lowers final NO<sub>x</sub>; replacing "
+  "instantaneous secondary mixing (<i>N</i> = 1) with five progressive dilution stages (<i>N</i> = 5) cuts right-branch NO<sub>x</sub> at "
+  "<i>\u03c6</i><sub>1</sub> = 2.0 from 3693 to 433 ppm (\u221288.3%, Friedman <i>p</i> = 1.67 \u00d7 10<sup>\u22125</sup>) by sustaining in-situ thermal "
+  "de-NO<sub>x</sub> before lean burnout. Fourth, under realistic gas-turbine regimes, elevating pressure from 1 to 30 atm shifts "
+  "the low-NO<sub>x</sub> valley from <i>\u03c6</i><sub>1</sub> = 1.3 to 1.1, collapses U-curve variance by 73.7% (Levene <i>p</i> = 0.0125), and "
+  "increases the NO<sub>2</sub>/NO<sub>x</sub> ratio 6.6-fold (<i>\u03c1</i> = 0.988, <i>p</i> = 3.14 \u00d7 10<sup>\u221244</sup>); compressor-discharge preheat "
+  "(300 \u2192 750 K) raises mean NO<sub>x</sub> linearly by 6.1 ppm K<sup>\u22121</sup>; and liner wall cooling (<i>U</i> = 3000 W m<sup>\u22122</sup> K<sup>\u22121</sup>) cuts "
+  "NO<sub>x</sub> by 386 ppm on average (paired <i>p</i> = 2.04 \u00d7 10<sup>\u22126</sup>) while maintaining complete burnout (NH<sub>3</sub> slip < 0.07 ppm). "
+  "All simulations are zero-dimensional and mechanism-specific, offering quantitative architectural guidance rather than "
+  "burner-resolved CFD predictions.")
 PB()
 
-# ================================================================ TOC etc.
-H("Table of Contents", 1)
-toc_field()
+# ================================================================ FRONT MATTER ANCHORS
+H("Table of Contents", 1, record_toc=False)
+toc_anchor = doc.add_paragraph("")
 PB()
-H("List of Abbreviations and Symbols", 1)
+
+H("List of Figures", 1, record_toc=False)
+lof_anchor = doc.add_paragraph("")
+PB()
+
+H("List of Tables", 1, record_toc=False)
+lot_anchor = doc.add_paragraph("")
+PB()
+
+H("Nomenclature and Abbreviations", 1, record_toc=False)
 TABLE(pd.DataFrame([
     ["PSR", "Perfectly stirred reactor"],
-    ["\u03c6, \u03c6\u2081", "Overall and primary-stage equivalence ratio"],
-    ["x_NH3", "NH\u2083 mole fraction in the fuel (H\u2082 = 1 \u2212 x_NH3)"],
-    ["\u03c4\u2081, \u03c4\u2082", "Residence time of primary and secondary stage"],
-    ["N", "Number of progressive secondary-air dilution stages"],
-    ["NO\u2093", "NO + NO\u2082 (ppm, mole basis)"],
+    ["RQL", "Rich\u2013quench\u2013lean combustion architecture"],
     ["ROP", "Rate of production"],
-    ["\u03b7\u00b2, partial R\u00b2", "Main-effect and Type-II variance fractions"],
-    ["CI", "Confidence interval"],
-    ["U, A", "Wall heat-transfer coefficient and area"],
-], columns=["Symbol", "Meaning"]), "Abbreviations and symbols.", fs=10, widths=[3.5, 11])
+    ["ANOVA", "Analysis of variance"],
+    ["CI", "Confidence interval (95% non-parametric bootstrap)"],
+    ["CFD", "Computational fluid dynamics"],
+    ["PFR / PaSR", "Plug-flow reactor / Partially stirred reactor"],
+    ["<i>\u03c6</i>, <i>\u03c6</i><sub>1</sub>", "Overall equivalence ratio (fixed at 0.9) and primary-stage equivalence ratio (1.0\u20132.0)"],
+    ["<i>x</i><sub>NH3</sub>, <i>x</i><sub>H2</sub>", "Inlet fuel mole fractions of NH<sub>3</sub> and H<sub>2</sub> (<i>x</i><sub>H2</sub> = 1 \u2212 <i>x</i><sub>NH3</sub>)"],
+    ["<i>\u03c4</i>, <i>\u03c4</i><sub>1</sub>, <i>\u03c4</i><sub>2</sub>", "Nominal, primary-stage, and secondary-stage reactor residence times (ms)"],
+    ["<i>N</i>", "Number of progressive secondary-air dilution stages (1, 3, or 5)"],
+    ["NO<sub>x</sub>", "Sum of nitric oxide and nitrogen dioxide mole fractions, NO + NO<sub>2</sub> (ppm)"],
+    ["<i>T</i><sub>in</sub>, <i>T</i><sub>1</sub>, <i>T</i><sub>final</sub>", "Inlet, Stage-1 outlet, and Stage-2 outlet temperatures (K)"],
+    ["<i>P</i>", "Combustor operating pressure (atm)"],
+    ["<i>U</i>, <i>A</i>", "Liner wall heat-transfer coefficient (W m<sup>\u22122</sup> K<sup>\u22121</sup>) and surface area (m<sup>2</sup>)"],
+    ["<i>\u03b7</i><sup>2</sup>, partial <i>R</i><sup>2</sup>", "One-way main-effect variance fraction and Type-II ANOVA variance share"],
+    ["<i>d</i><sub>z</sub>", "Cohen\u2019s paired standardised effect size"],
+], columns=["Symbol / Acronym", "Meaning"]), "Nomenclature, symbols, and acronyms used throughout the report.", fs=9.5, widths=[4.2, 11.8])
 PB()
 
-# ================================================================ CH 1
+# ================================================================ CHAPTER 1
 H("Chapter 1: Introduction", 1)
-H("1.1 Motivation", 2)
-J("Ammonia carries no carbon and can be stored and transported more easily than hydrogen, which makes NH\u2083/H\u2082 blends "
-  "promising for power generation and industrial heat [3]. Its combustion is, however, difficult: laminar burning "
-  "velocity and flame stability are low, and because the fuel contains nitrogen, NO\u2093 formation is controlled by fuel-bound "
-  "nitrogen chemistry in addition to the thermal (Zeldovich) route [4, 5]. Hydrogen addition restores reactivity but "
-  "raises flame temperature and radical pools.")
-J("Rich\u2013lean staging separates the problem in two. A rich primary zone limits free oxygen so that fuel nitrogen is "
-  "directed towards N\u2082 through NH\u2082/NH + NO reactions (the thermal de-NO\u2093 chemistry [6, 7]); the remaining air then burns "
-  "out the products in a lean secondary zone. Whether this helps, and how much, depends on how the NH\u2093 and H\u2082 "
-  "intermediates leaving the rich zone meet the secondary oxygen.")
-H("1.2 Summary of the mid-semester study and its limitations", 2)
-J("The mid-semester report built the two-stage PSR model and swept x_NH3 (0\u20131, 11 levels), \u03c6\u2081 (1.0\u20132.0, 11 levels) and "
-  "\u03c4 (20\u2013100 ms, 5 levels) at \u03c6 = 0.9, 300 K, 1 atm: 605 cases, 586 converged. Final temperature was governed by "
-  "fuel composition (\u03b7\u00b2 = 0.981); NO\u2093 depended on both NH\u2083 fraction and \u03c6\u2081 (\u03b7\u00b2 = 0.186, 0.254) and was "
-  "non-monotonic; \u0394T of Stage 2 was governed by \u03c6\u2081 (\u03b7\u00b2 = 0.993). The study ended with four stated limitations:")
-B(["No single-stage baseline, so the benefit of staging was not quantified.",
-   "No rate-of-production or pathway analysis, so the cause of the U-shaped NO\u2093 response was inferred, not shown.",
-   "Equal residence times and instantaneous secondary mixing.",
-   "Adiabatic operation at 1 atm and 300 K, far from gas-turbine conditions."])
-H("1.3 Objectives of the end-semester work", 2)
-B(["Quantify the benefit of staging against an identical-condition single-stage PSR (Phase 1).",
-   "Identify, from elementary reaction fluxes, the chemical origin of the U-shaped NO\u2093 curve (Phase 2).",
-   "Decouple \u03c4\u2081 \u2260 \u03c4\u2082 and replace instantaneous secondary mixing with finite-rate progressive dilution (Phase 3).",
-   "Extend to elevated pressure, compressor-discharge preheat and wall heat loss (Phase 4).",
-   "Establish the statistical significance and uncertainty of every headline result.",
-   "Deliver a reproducible, version-controlled code base with documented outputs."], numbered=True)
-H("1.4 Research questions", 2)
-B(["By how much, and under which conditions, does staging reduce NO\u2093 relative to single-stage combustion?",
-   "Which elementary reactions produce the left branch, the valley and the right branch of the NO\u2093 U-curve?",
-   "Does a short rich-zone residence time reduce unburnt intermediate carry-over?",
-   "Does finite-rate secondary mixing change the NO\u2093 response?",
-   "How do pressure, preheat and liner cooling alter the optimum \u03c6\u2081?",
-   "Which of these effects are statistically significant, and how large are they?"], numbered=True)
+H("1.1 Introduction", 2)
+J("This chapter establishes the engineering motivation for staged ammonia\u2013hydrogen (NH<sub>3</sub>/H<sub>2</sub>) combustion, summarises "
+  "the foundation and limitations of the mid-semester study, defines the end-semester research objectives and questions, "
+  "and outlines the structure of the remainder of the thesis.")
+
+H("1.2 Motivation and Mid-Semester Foundation", 2)
+J("Ammonia is a leading carbon-free chemical hydrogen carrier and zero-carbon gas-turbine fuel because it liquefies at "
+  "moderate pressure and leverages global agricultural transport infrastructure [1]. However, practical ammonia combustion "
+  "faces two coupled kinetic hurdles: (i) low chemical reactivity, narrow flammability limits, and slow flame propagation "
+  "relative to hydrocarbons, and (ii) fuel-bound nitrogen chemistry that converts NH<sub>3</sub> directly into nitrogen oxides "
+  "(NO<sub>x</sub> = NO + NO<sub>2</sub>) even at moderate flame temperatures [1, 2]. Blending H<sub>2</sub> into NH<sub>3</sub> accelerates radical pool "
+  "growth and stabilises oxidation, while rich\u2013quench\u2013lean (RQL) air staging suppresses NO<sub>x</sub> by reacting the fuel first in "
+  "an oxygen-lean primary zone before burning out residuals in a lean secondary zone [3\u20135].")
+J("The mid-semester study constructed a two-stage ideal-gas perfectly stirred reactor (PSR) network in Cantera [6] using the "
+  "Tamaoki et al. (2024) NH<sub>3</sub>/H<sub>2</sub> kinetic mechanism [7] and evaluated a 605-point factorial grid over fuel composition "
+  "(<i>x</i><sub>NH3</sub> = 0.0\u20131.0), primary equivalence ratio (<i>\u03c6</i><sub>1</sub> = 1.0\u20132.0), and shared residence time (<i>\u03c4</i> = 20\u2013100 ms) at "
+  "overall <i>\u03c6</i> = 0.9, 300 K, and 1 atm (586 converged points). While that map showed that fuel blend governs final "
+  "temperature (<i>\u03b7</i><sup>2</sup> = 0.981), <i>\u03c6</i><sub>1</sub> governs Stage-2 temperature rise (<i>\u03b7</i><sup>2</sup> = 0.993), and NO<sub>x</sub> forms a "
+  "strongly non-monotonic U-shaped curve against <i>\u03c6</i><sub>1</sub>, four critical limitations prevented architectural conclusions:")
+B(["No single-stage baseline existed on the same operating grid, leaving the quantitative NO<sub>x</sub> benefit of staging unproven.",
+   "No elementary rate-of-production (ROP) or reaction-pathway flux analysis was performed, leaving the mechanism behind the "
+   "non-monotonic U-shaped NO<sub>x</sub> curve inferred rather than demonstrated.",
+   "Equal stage residence times (<i>\u03c4</i><sub>1</sub> = <i>\u03c4</i><sub>2</sub>) and instantaneous secondary air mixing omitted real combustor mixing physics.",
+   "Ambient, adiabatic boundary conditions (1 atm, 300 K, <i>U</i> = 0) excluded gas-turbine pressure, preheat, and wall cooling effects."])
+
+H("1.3 Objectives of the End-Semester Study", 2)
+B(["<b>Phase 1 \u2014 Baseline Quantification:</b> Simulate an identical-condition single-stage lean PSR baseline across all fuel "
+   "blends and residence times and quantify the NO<sub>x</sub> reduction and fuel-slip trade-offs of staging.",
+   "<b>Phase 2 \u2014 Kinetic Deconstruction:</b> Perform reaction-by-reaction ROP and nitrogen-flux pathway analysis across "
+   "<i>\u03c6</i><sub>1</sub> = 1.0\u20132.0 to isolate the exact reactions creating the left branch, valley minimum, and right branch.",
+   "<b>Phase 3 \u2014 Reactor Architecture and Mixing Physics:</b> Decouple primary and secondary residence times (<i>\u03c4</i><sub>1</sub> \u2260 <i>\u03c4</i><sub>2</sub>) "
+   "and replace instantaneous mixing with progressive <i>N</i>-stage finite-rate secondary air dilution.",
+   "<b>Phase 4 \u2014 Gas-Turbine Operating Regimes:</b> Extend the staged network to elevated pressure (1\u201330 atm), compressor-discharge "
+   "preheat (300\u2013750 K), and non-adiabatic combustor liner wall heat loss (<i>U</i> = 0\u20133000 W m<sup>\u22122</sup> K<sup>\u22121</sup>).",
+   "<b>Statistical Verification:</b> Apply formal hypothesis tests, effect sizes, and bootstrap confidence intervals (CIs) "
+   "across all phases to test consistency and interaction structure.",
+   "<b>Reproducibility:</b> Consolidate all Python simulation modules, datasets, figures, and this report builder into a "
+   "version-controlled repository."], numbered=True)
+
+H("1.4 Research Questions", 2)
+B(["By how much, and across which fuel blends and staging windows, does two-stage combustion outperform single-stage combustion?",
+   "Which elementary reactions and inter-stage nitrogen radical carry-over species produce the U-shaped NO<sub>x</sub> curve?",
+   "Does shortening rich primary residence time <i>\u03c4</i><sub>1</sub> suppress intermediate carry-over, or does a longer rich zone help?",
+   "How strongly does finite-rate progressive secondary air dilution mitigate the right-branch NO<sub>x</sub> penalty?",
+   "How do gas-turbine pressure, inlet air preheat, and liner cooling shift the minimum-NO<sub>x</sub> <i>\u03c6</i><sub>1</sub> operating point?",
+   "Which observed effects remain statistically significant across operating regimes, and where do opposing interactions mask main effects?"], numbered=True)
+
+H("1.5 Organisation of the Report", 2)
+J("Chapter 2 reviews the ammonia combustion kinetics and nitrogen-chemistry literature that motivate the mechanism and "
+  "diagnostics. Chapter 3 formulates the governing equations, architectural extensions, ROP diagnostics, simulation campaigns, "
+  "and statistical methods. Chapter 4 presents the Phase 1 single-stage baseline comparison and Phase 2 kinetic ROP/pathway "
+  "analysis. Chapter 5 investigates Phase 3 residence-time decoupling and finite-rate mixing alongside Phase 4 gas-turbine "
+  "pressure, preheat, and wall heat-loss regimes. Chapter 6 establishes formal statistical significance across all phases and "
+  "synthesises an integrated combustor design window. Chapter 7 summarises the conclusions and future research directions.")
+
+H("1.6 Conclusion", 2)
+J("The end-semester investigation transforms the mid-semester parametric grid into a complete combustion engineering study "
+  "by introducing an explicit baseline, elementary kinetic proof, realistic reactor mixing physics, gas-turbine conditions, "
+  "and rigorous statistical verification. Chapter 2 now places these modelling choices in the context of existing NH<sub>3</sub>/H<sub>2</sub> "
+  "combustion literature.")
 PB()
 
-# ================================================================ CH 2
+# ================================================================ CHAPTER 2
 H("Chapter 2: Literature Survey", 1)
-H("2.1 Ammonia oxidation kinetics", 2)
-J("Tamaoki et al. developed a 33-species, 228-reaction ammonia mechanism from the Zhang\u2013Otomo model and showed that "
-  "NH\u2082 branching reactions, notably NH\u2082 + HO\u2082 and NH\u2082 + NH\u2082, strongly affect ammonia consumption and hydrogen "
-  "generation at intermediate temperatures [1]. Review papers describe ammonia as a fuel with narrow flammability, low "
-  "burning velocity and high NO\u2093 potential, with hydrogen blending and staged combustion as the principal mitigation "
-  "routes [3, 4].")
-H("2.2 Nitrogen chemistry and de-NO\u2093", 2)
-J("Nitrogen oxide chemistry in combustion has been reviewed by Miller and Bowman [5] and, for ammonia-relevant systems, "
-  "by Glarborg et al. [4]. The key competition is between oxidation of NH\u2093/HNO to NO (NH + O\u2082, HNO + OH) and reduction "
-  "of NO by NH\u2082 and NH to N\u2082 or N\u2082O/NNH (NH\u2082 + NO, NH + NO), the basis of thermal de-NO\u2093 [6, 7]. These are the "
-  "reactions interrogated in the rate-of-production analysis here.")
-H("2.3 Reactor-network modelling with Cantera", 2)
-J("Cantera provides ideal-gas thermodynamics, kinetics and reactor-network objects [2]. PSR networks are a standard "
-  "low-cost way to explore staging and mixing effects before CFD, with the caveat that they omit spatial structure.")
-H("2.4 Gap addressed", 2)
-J("Mechanisms and flame studies describe the chemistry but do not provide, for a staged NH\u2083/H\u2082 reactor, "
-  "(i) a quantitative baseline-controlled staging benefit, (ii) a flux-level explanation of the NO\u2093 U-curve, (iii) "
-  "the role of independent stage residence times and finite secondary mixing, and (iv) the shift of these results under "
-  "gas-turbine pressure, preheat and heat loss. This report addresses these four points and attaches statistical "
-  "support to each.")
+H("2.1 Introduction", 2)
+J("This chapter reviews prior experimental and chemical-kinetic studies of ammonia oxidation, fuel-bound NO<sub>x</sub> chemistry, "
+  "and PSR network modelling. Section 2.2 covers ammonia oxidation branching, Section 2.3 summarises NO formation and thermal "
+  "de-NO<sub>x</sub> reduction pathways, Section 2.4 reviews zero-dimensional reactor-network modelling for combustor realism, and "
+  "Section 2.5 defines the specific modelling gap resolved by this project.")
+
+H("2.2 Ammonia Oxidation Kinetics", 2)
+J("Comprehensive reviews by Kobayashi et al. [1] and Glarborg et al. [2] establish that ammonia oxidation proceeds primarily "
+  "through hydrogen abstraction (NH<sub>3</sub> + OH/H/O \u21c4 NH<sub>2</sub> + H<sub>2</sub>O/H<sub>2</sub>/OH) rather than unimolecular bond scission. "
+  "Because NH<sub>3</sub> reaction rates are substantially slower than those of H<sub>2</sub> or CH<sub>4</sub>, pure ammonia flames exhibit low laminar "
+  "burning velocities and high ignition temperatures [1, 8]. Blending H<sub>2</sub> supplies reactive H, O, and OH radicals that accelerate "
+  "NH<sub>3</sub> initiation and expand lean blow-off margins.")
+J("Tamaoki et al. [7] investigated NH<sub>3</sub> oxidation across fuel-lean to fuel-rich conditions in flow reactors and constructed "
+  "a 33-species, 228-reaction mechanism refined from earlier Zhang and Otomo models. They demonstrated that model-to-model "
+  "discrepancies originate largely from NH<sub>2</sub> radical branching at intermediate temperatures\u2014specifically competition between "
+  "chain-carrying NH<sub>2</sub> + HO<sub>2</sub> steps, radical-recombination NH<sub>2</sub> + NH<sub>2</sub> hydrogen-forming steps, and NO-reducing channels. "
+  "Their validated mechanism (<code>TamaokiNH3.yaml</code>) is used directly in this work.")
+
+H("2.3 Fuel-Bound Nitrogen Chemistry and Thermal DeNOx", 2)
+J("Miller and Bowman [3] showed that when fuel contains chemically bound nitrogen, NO<sub>x</sub> formation is dominated by fast "
+  "fuel-N radical pathways (NH<sub>2</sub> \u2192 NH \u2192 HNO/N \u2192 NO) rather than solely by high-temperature Zeldovich N<sub>2</sub> fixation. "
+  "Crucially, under moderately fuel-rich conditions, amine radicals also selectively reduce NO back to molecular N<sub>2</sub> via "
+  "the thermal de-NO<sub>x</sub> reactions NH<sub>2</sub> + NO \u21c4 H<sub>2</sub>O + N<sub>2</sub>, NH<sub>2</sub> + NO \u21c4 NNH + OH, and NH + NO \u21c4 N<sub>2</sub> + OH / H + N<sub>2</sub>O [4, 5]. "
+  "As documented by Glarborg et al. [4] and shock-tube measurements by Song et al. [5], the balance between NO oxidation "
+  "(HNO + OH, NH + O<sub>2</sub>, N + O<sub>2</sub>) and NO reduction depends strongly on temperature, O<sub>2</sub> availability, and radical residence time.")
+
+H("2.4 Reactor-Network Modelling and Combustor Realism", 2)
+J("Cantera provides a validated thermodynamic and chemical-kinetic framework for zero-dimensional PSR networks [6]. While "
+  "two-stage PSR models capture rich\u2013lean chemical staging at a fraction of the cost of multidimensional computational fluid "
+  "dynamics (CFD), standard idealised models omit three physical features present in practical gas turbines: unequal primary "
+  "and secondary residence times, finite-rate turbulent dilution of secondary air (approximated in chemical reactor networks "
+  "by progressive multi-stage injection or plug-flow mixing), and elevated pressure, compressor-discharge preheat, and wall "
+  "heat transfer [1, 2].")
+
+H("2.5 Research Gap Addressed", 2)
+J("Existing literature establishes NH<sub>3</sub>/H<sub>2</sub> mechanism chemistry and qualitative RQL principles, but lacks an integrated, "
+  "reproducible study linking (i) baseline-controlled staging benefits across full fuel-blend maps, (ii) elementary ROP proof "
+  "of the NO<sub>x</sub> U-curve and inter-stage amine carry-over, (iii) architectural decoupling of stage residence times and "
+  "progressive secondary air dilution, (iv) gas-turbine pressure/preheat/wall-cooling shifts, and (v) formal statistical "
+  "significance across every phase.")
+
+H("2.6 Conclusion", 2)
+J("The reviewed kinetics highlight a clear mechanistic competition between HNO/NH oxidation and NH<sub>2</sub>/NH thermal de-NO<sub>x</sub>. "
+  "Chapter 3 translates these physical principles into exact Cantera PSR network formulations, diagnostic equations, and "
+  "statistical tests.")
 PB()
 
-# ================================================================ CH 3
-H("Chapter 3: Problem Formulation and Governing Relations", 1)
-H("3.1 Fuel composition and air allocation", 2)
-J("The fuel is an NH\u2083/H\u2082 mixture with x_H\u2082 = 1 \u2212 x_NH3. For one mole of fuel the stoichiometric O\u2082 demand is "
-  "0.75 x_NH3 + 0.50 x_H\u2082, giving A_stoic = 4.76 \u00d7 that value in air moles. The primary and total air and the "
-  "secondary-air fraction follow from the equivalence ratios:")
-EQ("A\u2081 = A_stoic / \u03c6\u2081", 1)
-EQ("A_total = A_stoic / \u03c6", 2)
-EQ("A\u2082 / A_total = 1 \u2212 \u03c6/\u03c6\u2081", 3)
-J("With \u03c6 = 0.9 the secondary stage receives 10% of the air at \u03c6\u2081 = 1.0 and 55% at \u03c6\u2081 = 2.0.")
-FIGURE(MID_IMG / "image1.png", "Air redistribution between stages as a function of \u03c6\u2081 at \u03c6 = 0.9.", 11)
-H("3.2 Perfectly stirred reactor model", 2)
-J("Each stage is a constant-pressure, adiabatic (unless stated) PSR with species and energy balances")
-EQ("d(m Y_k)/dt = \u1e41 (Y_k,in \u2212 Y_k) + V \u03c9\u0307_k W_k", 4)
-EQ("\u1e41 = m / \u03c4", 5)
-J("The reactor is integrated in time until temperature and composition change by less than 10\u207b\u2078 (relative), which is "
-  "more robust than a steady-state Newton solve for stiff NH\u2083 chemistry. The primary outlet is passed unchanged to the "
-  "secondary stage, where the secondary air is added.")
-FIGURE(MID_IMG / "image2.png", "Two-stage PSR representation used throughout the study.", 12)
-H("3.3 Decoupled residence times (Phase 3)", 2)
-J("The two stages receive independent residence times \u03c4\u2081 and \u03c4\u2082 (\u1e41\u2081 = m\u2081/\u03c4\u2081, \u1e41\u2082 = m\u2082/\u03c4\u2082). The total "
-  "residence time is \u03c4\u2081 + \u03c4\u2082 and the ratio \u03c4\u2081/\u03c4\u2082 is a sizing variable.")
-H("3.4 Finite-rate secondary mixing (Phase 3)", 2)
-J("Instantaneous mixing is replaced by a progressive dilution sequence. The secondary air is divided into N equal "
-  "parcels \u0394n = n_air,2/N and the secondary residence time into N sub-intervals \u03c4_sub = \u03c4\u2082/N. In sub-stage k the "
-  "product of sub-stage k \u2212 1 is mixed with one parcel and reacted before entering sub-stage k + 1. N = 1 recovers "
-  "instantaneous mixing; N = 3 and 5 approximate an air-injection plug-flow reactor with increasing resolution.")
-H("3.5 Gas-turbine conditions (Phase 4)", 2)
-J("Operating pressure P, inlet (compressor-discharge) temperature T_in and wall heat loss are added. Wall heat loss "
-  "enters the energy equation of each reactor as")
-EQ("Q\u0307_wall = U A (T \u2212 T_wall)", 6)
-J("with U in W m\u207b\u00b2 K\u207b\u00b9 and A = 0.25 m\u00b2.")
-H("3.6 Kinetic diagnostics", 2)
-J("For each stage the net rate of progress of every reaction is evaluated at the reactor state. The contribution of a "
-  "reaction to NO is its net rate multiplied by the net stoichiometric coefficient of NO (kmol m\u207b\u00b3 s\u207b\u00b9). Summing these "
-  "over reactions gives the net NO production rate, and the largest positive and negative terms define the "
-  "production and consumption pathways. Nitrogen-flux graphs are generated with Cantera\u2019s reaction-path diagrams.")
-H("3.7 Metrics", 2)
-EQ("NO\u2093 = NO + NO\u2082", 7)
-EQ("Staging benefit (%) = 100 (NO\u2093,single \u2212 NO\u2093,staged) / NO\u2093,single", 8)
-EQ("\u0394T = T\u2082 \u2212 T\u2081,   \u0394NO\u2093 = NO\u2093,\u2082 \u2212 NO\u2093,\u2081", 9)
-H("3.8 Statistical framework", 2)
-J("The simulations are deterministic, so there is no sampling noise in the usual sense. Significance is therefore "
-  "assessed over the sampled operating conditions: a result is significant if the effect is too large and consistent "
-  "across conditions to be explained by chance variation of the response with the other factors. Four tools are used:")
-B(["Type-II ANOVA (partial F-tests with dummy-coded factors) for factorial grids; effect size is the partial R\u00b2.",
-   "Paired tests for baseline-controlled comparisons: paired t-test, Wilcoxon signed-rank test, binomial sign test, "
-   "with Cohen\u2019s d_z as effect size (staged vs single stage; N = 1 vs 3 vs 5; adiabatic vs cooled; 1 vs 30 atm).",
-   "Rank-trend tests: Spearman correlation per \u03c6\u2081 level, tested across levels by a one-sample t-test; Friedman test for "
-   "repeated measures across N.",
-   "Non-parametric bootstrap (10 000 resamples, fixed seed) for 95% confidence intervals [8]."])
-J("Because the Wilcoxon test is rank-based [9] it does not require normality of the NO\u2093 differences, which are "
-  "right-skewed. Where p-values underflow double precision they are reported as < 10\u207b\u00b3\u2070\u2070. "
-  "With deterministic data, n is the number of operating conditions, so large n inflates significance; effect sizes and "
-  "confidence intervals are therefore reported alongside p-values.")
+# ================================================================ CHAPTER 3
+H("Chapter 3: Problem Formulation and Numerical Methodology", 1)
+H("3.1 Introduction", 2)
+J("This chapter presents the mathematical formulation and computational methodology used across all phases of the project. "
+  "Section 3.2 defines fuel stoichiometry and stage-wise air splitting; Section 3.3 formulates the baseline two-stage PSR, "
+  "decoupled residence times, and progressive dilution networks; Section 3.4 incorporates gas-turbine pressure, preheat, and "
+  "liner heat loss; Section 3.5 defines ROP and nitrogen-flux diagnostics; Section 3.6 summarises all simulation campaigns "
+  "and solver verification; Section 3.7 defines the statistical significance tests; and Section 3.8 notes modelling limitations.")
+
+H("3.2 Fuel Composition and Air Allocation", 2)
+J("The fuel blend is defined on a molar basis by ammonia mole fraction <i>x</i><sub>NH3</sub> \u2208 [0, 1] and hydrogen mole fraction:")
+eq_fuel = EQ("<i>x</i><sub>H2</sub> = 1 \u2212 <i>x</i><sub>NH3</sub>")
+J(f"Per mole of binary fuel using {eq_fuel}, complete oxidation to N<sub>2</sub> and H<sub>2</sub>O requires "
+  "<i>O</i><sub>2,stoic</sub> = 0.75<i>x</i><sub>NH3</sub> + 0.50<i>x</i><sub>H2</sub> moles of O<sub>2</sub>. Using standard dry air "
+  "(O<sub>2</sub>:N<sub>2</sub> = 1:3.76), the stoichiometric, primary, total, and secondary air moles follow "
+  "from the fixed overall equivalence ratio (<i>\u03c6</i> = 0.9) and primary equivalence ratio (<i>\u03c6</i><sub>1</sub> \u2208 [1.0, 2.0]):")
+eq_a1 = EQ("<i>A</i><sub>stoic</sub> = 4.76(0.75<i>x</i><sub>NH3</sub> + 0.50<i>x</i><sub>H2</sub>),   <i>A</i><sub>1</sub> = <i>A</i><sub>stoic</sub> / <i>\u03c6</i><sub>1</sub>,   <i>A</i><sub>total</sub> = <i>A</i><sub>stoic</sub> / <i>\u03c6</i>")
+eq_a2 = EQ("<i>A</i><sub>2</sub> / <i>A</i><sub>total</sub> = 1 \u2212 <i>\u03c6</i> / <i>\u03c6</i><sub>1</sub>")
+J(f"As defined in {eq_a1}\u2013{eq_a2}, increasing <i>\u03c6</i><sub>1</sub> from 1.0 to 2.0 at fixed <i>\u03c6</i> = 0.9 monotonically shifts the secondary air fraction "
+  f"from 10% to 55% of total combustor air. This air redistribution is plotted in Figure {{FIG_AIR}}.")
+fig_air = FIGURE(MID_IMG / "image1.png", "Air redistribution between primary and secondary stages as a function of primary equivalence ratio <i>\u03c6</i><sub>1</sub> at fixed overall <i>\u03c6</i> = 0.9.", 11.0)
+
+H("3.3 Two-Stage PSR Network and Architectural Extensions", 2)
+J("Each PSR stage is solved as a constant-pressure, spatially uniform control volume of nominal volume <i>V</i> = 1.0 m<sup>3</sup> "
+  "governed by the transient species mass conservation equation and mass flow relation:")
+eq_psr = EQ("d(<i>mY</i><sub>k</sub>)/d<i>t</i> = <i>\u1e41</i>(<i>Y</i><sub>k,in</sub> \u2212 <i>Y</i><sub>k</sub>) + <i>V\u03c9\u0307</i><sub>k</sub><i>W</i><sub>k</sub>,   <i>\u1e41</i> = <i>m</i> / <i>\u03c4</i>")
+J(f"where <i>m</i> is reactor gas mass, <i>Y</i><sub>k</sub> is species mass fraction, <i>\u1e41</i> is mass flow rate controlled via {eq_psr}, <i>\u03c9\u0307</i><sub>k</sub> is molar "
+  "production rate, and <i>W</i><sub>k</sub> is molar mass. Rather than relying on steady-state Newton iteration, each PSR is integrated "
+  "transiently from an equilibrated (Stage 1) or mixed (Stage 2) state until relative changes in temperature and all species "
+  "fall below 10<sup>\u22128</sup> after at least 5 nominal residence times (capped at 100<i>\u03c4</i>). Stage 1 products pass unaltered to Stage 2, "
+  "where secondary air is injected (Figure {{FIG_NET}}).")
+fig_net = FIGURE(MID_IMG / "image2.png", "Schematic of the two-stage perfectly stirred reactor network showing inter-stage species transfer.", 12.0)
+J("Three architectural variants were built on this core:")
+B(["<b>Phase 1 Single-Stage Baseline:</b> Fuel and total air (<i>\u03c6</i> = 0.9) react directly in one PSR evaluated both at matched "
+   "single-stage residence time <i>\u03c4</i> (20\u2013100 ms) and matched total combustor residence time <i>\u03c4</i><sub>equiv</sub> = 2<i>\u03c4</i> (40\u2013200 ms).",
+   "<b>Phase 3a Decoupled Residence Times:</b> Stage 1 and Stage 2 receive independent residence times <i>\u03c4</i><sub>1</sub> \u2208 [10, 50] ms "
+   "and <i>\u03c4</i><sub>2</sub> \u2208 [20, 100] ms (total <i>\u03c4</i><sub>total</sub> = <i>\u03c4</i><sub>1</sub> + <i>\u03c4</i><sub>2</sub>, ratio <i>\u03c4</i><sub>1</sub>/<i>\u03c4</i><sub>2</sub>).",
+   "<b>Phase 3b Progressive Finite-Rate Dilution:</b> Instead of instantaneous addition (<i>N</i> = 1), secondary air <i>A</i><sub>2</sub> is split "
+   "equally into <i>N</i> \u2208 {1, 3, 5} parcels \u0394<i>A</i> = <i>A</i><sub>2</sub>/<i>N</i>, each entering a sub-stage PSR of residence time "
+   "<i>\u03c4</i><sub>sub</sub> = <i>\u03c4</i><sub>2</sub>/<i>N</i> to approximate sequential secondary air jet mixing."])
+
+H("3.4 Gas-Turbine Regimes and Wall Heat Loss", 2)
+J("Phase 4 generalises the two-stage network to arbitrary operating pressure <i>P</i> (1\u201330 atm), compressor-discharge inlet "
+  "temperature <i>T</i><sub>in</sub> (300\u2013750 K), and convective/effusion liner wall heat loss using Cantera\u2019s <code>Wall</code> object on each reactor:")
+eq_wall = EQ("<i>Q\u0307</i><sub>wall</sub> = <i>UA</i>(<i>T</i> \u2212 <i>T</i><sub>wall</sub>)")
+J(f"where heat transfer obeys {eq_wall} with <i>U</i> \u2208 [0, 3000] W m<sup>\u22122</sup> K<sup>\u22121</sup>, wall surface area <i>A</i> = 0.25 m<sup>2</sup>, and wall temperature fixed at <i>T</i><sub>wall</sub> = <i>T</i><sub>in</sub>.")
+
+H("3.5 Rate-of-Production and Pathway Diagnostics", 2)
+J("At each converged stage state (<i>x</i><sub>NH3</sub> = 0.50, <i>\u03c4</i> = 60 ms, <i>\u03c6</i><sub>1</sub> = 1.0\u20132.0), Cantera evaluates the net rate of progress "
+  "<i>q</i><sub>net,<i>i</i></sub> for every elementary reaction <i>i</i>. The NO production contribution of reaction <i>i</i> is computed as:")
+eq_rop = EQ("<i>C</i><sub>NO,<i>i</i></sub> = (<i>\u03bd</i>\u2033<sub>NO,<i>i</i></sub> \u2212 <i>\u03bd</i>\u2032<sub>NO,<i>i</i></sub>) <i>q</i><sub>net,<i>i</i></sub>   [kmol m<sup>\u22123</sup> s<sup>\u22121</sup>]")
+J(f"Recording all NO-participating reactions via {eq_rop} avoids filtering biases and yields exact NO source/sink rankings. "
+  "In addition, element-\u2018N\u2019 <code>ReactionPathDiagram</code> graphs are generated with normalised flux scaling (<code>scale = -1</code>, threshold = 2% "
+  "of peak stage nitrogen flux) and rendered with Graphviz <code>dot</code> so both rich primary pyrolysis and lean burnout fluxes are resolved.")
+J("The principal performance and emission metrics reported across chapters are defined by (7)\u2013(8):")
+eq_met = EQ("NO<sub>x</sub> = NO + NO<sub>2</sub>,   <i>\u0394T</i> = <i>T</i><sub>2</sub> \u2212 <i>T</i><sub>1</sub>,   <i>\u0394</i>NO<sub>x</sub> = NO<sub>x,2</sub> \u2212 NO<sub>x,1</sub>")
+eq_ben = EQ("Staging benefit (%) = 100 (NO<sub>x,single</sub> \u2212 NO<sub>x,staged</sub>) / NO<sub>x,single</sub>")
+
+H("3.6 Computational Campaigns and Verification", 2)
+J("All simulations run in Python with Cantera 3.0 and <code>mechanisms/TamaokiNH3.yaml</code> (33 species, 228 reactions) [6, 7]. "
+  "Table {{TAB_MOD}} lists the repository software modules, and Table {{TAB_CAMP}} summarises the eight computational campaigns.")
+tab_mod = TABLE(pd.DataFrame([
+    ["<code>double_stage/staged_combustion.py</code>", "Core two-stage PSR, decoupled <i>\u03c4</i>, finite dilution (<i>N</i> stages), and gas-turbine regimes"],
+    ["<code>single_stage/single_stage_baseline.py</code>", "Phase 1 single-stage PSR baseline sweep and matched comparison datasets/plots"],
+    ["<code>double_stage/rate_of_production_analysis.py</code>", "Phase 2 elementary NO ROP extraction and normalised N-pathway Graphviz diagrams"],
+    ["<code>double_stage/decoupled_mixing_analysis.py</code>", "Phase 3 decoupled (<i>\u03c4</i><sub>1</sub>, <i>\u03c4</i><sub>2</sub>) 2D grid and <i>N</i>-stage finite-mixing engine"],
+    ["<code>double_stage/gas_turbine_regimes_analysis.py</code>", "Phase 4 elevated pressure, preheat, and wall heat-loss sweeps"],
+    ["<code>double_stage/statistical_significance_analysis.py</code>", "47-test statistical inference suite (ANOVA, paired tests, bootstrap CIs)"],
+    ["<code>docs/reports/build_end_semester_report.py</code>", "Automated end-semester report generator reading directly from committed CSVs"],
+], columns=["Module", "Responsibility"]), "Repository software modules created and maintained in the study.", fs=8.8, widths=[6.8, 9.2])
+
+tab_camp = TABLE(pd.DataFrame([
+    ["Main 605-case", "<i>x</i><sub>NH3</sub> 0\u20131 (11), <i>\u03c6</i><sub>1</sub> 1.0\u20132.0 (11), <i>\u03c4</i> 20\u2013100 ms (5)", "300 K, 1 atm, <i>U</i> = 0", "605 (586 converged)"],
+    ["Phase 1 Baseline", "<i>x</i><sub>NH3</sub> 0\u20131 (11), <i>\u03c4</i> 20\u2013200 ms (8)", "300 K, 1 atm, <i>\u03c6</i> = 0.9", "88 single; 469 matched"],
+    ["Phase 2 ROP", "<i>\u03c6</i><sub>1</sub> 1.0\u20132.0 (11), Stage 1 & Stage 2", "<i>x</i><sub>NH3</sub> = 0.5, <i>\u03c4</i> = 60 ms", "11 (1606 rxn rows)"],
+    ["Phase 3a Decoupled <i>\u03c4</i>", "<i>\u03c6</i><sub>1</sub> \u2208 {1.2,1.4,1.6,1.8,2.0}, <i>\u03c4</i><sub>1</sub> 10\u201350, <i>\u03c4</i><sub>2</sub> 20\u2013100 ms", "<i>x</i><sub>NH3</sub> = 0.5, 300 K, 1 atm", "125 (100% converged)"],
+    ["Phase 3b Mixing", "<i>\u03c6</i><sub>1</sub> 1.0\u20132.0 (11), <i>N</i> \u2208 {1, 3, 5}", "<i>\u03c4</i><sub>1</sub> = 30, <i>\u03c4</i><sub>2</sub> = 60 ms", "33 (100% converged)"],
+    ["Phase 4a Pressure", "<i>\u03c6</i><sub>1</sub> 1.0\u20132.0 (11), <i>P</i> \u2208 {1, 5, 10, 20, 30} atm", "<i>x</i><sub>NH3</sub> = 0.5, <i>T</i><sub>in</sub> = 300 K", "55 (100% converged)"],
+    ["Phase 4b Preheat", "<i>\u03c6</i><sub>1</sub> (7 levels), <i>T</i><sub>in</sub> \u2208 {300, 450, 600, 750} K", "<i>x</i><sub>NH3</sub> = 0.5, 10 atm", "28 (100% converged)"],
+    ["Phase 4c Heat Loss", "<i>\u03c6</i><sub>1</sub> (7 levels), <i>U</i> \u2208 {0, 500, 1500, 3000} W m<sup>\u22122</sup> K<sup>\u22121</sup>", "15 atm, 650 K", "28 (100% converged)"],
+], columns=["Campaign", "Varied Parameters", "Fixed Conditions", "Cases"]), "Summary of computational simulation campaigns (all at overall <i>\u03c6</i> = 0.9).", fs=8.5, widths=[2.7, 6.4, 3.6, 3.3])
+J(f"Overall equivalence ratio across converged main-study cases is preserved to a maximum absolute error of 1.11 \u00d7 10<sup>\u221216</sup>. "
+  f"As shown in Table {tab_camp}, every Phase 1\u20134 extension converged 100%, and <i>\u03c4</i><sub>1</sub> = <i>\u03c4</i><sub>2</sub> and <i>N</i> = 1 slices recover the "
+  "instantaneous baseline formulation exactly.")
+
+H("3.7 Statistical Significance Framework", 2)
+J("Because Cantera PSR integrations are deterministic, statistical significance here tests whether an observed effect is too "
+  "large and systematic across the sampled operating grid to arise from random fluctuation across other operating factors. "
+  "Four complementary inferential methods are used in <code>double_stage/statistical_significance_analysis.py</code>:")
+B(["<b>Type-II ANOVA Partial <i>F</i>-Tests:</b> Ordinary least-squares regression with categorical factor dummies isolates the "
+   "unique partial <i>R</i><sup>2</sup> contribution and <i>F</i>-statistic of each factor on factorial grids.",
+   "<b>Paired Parametric and Non-Parametric Tests:</b> Matched-condition comparisons (single-stage vs. staged, <i>N</i> = 1 vs. 3 vs. 5, "
+   "adiabatic vs. cooled, 1 vs. 30 atm) use paired <i>t</i>-tests, Cohen\u2019s <i>d</i><sub>z</sub>, rank-based Wilcoxon signed-rank tests [9] "
+   "(robust to right-skewed NO<sub>x</sub> differences), and two-sided binomial sign tests.",
+   "<b>Monotonic Rank and Variance-Collapse Tests:</b> Per-<i>\u03c6</i><sub>1</sub> Spearman rank correlations <i>\u03c1</i> (exact permutation "
+   "<i>p</i> = 2/<i>n</i>! when |<i>\u03c1</i>| = 1, or exact sign test across levels), Friedman repeated-measures tests across <i>N</i>, "
+   "and Levene\u2019s test for spread collapse under high pressure.",
+   "<b>Non-Parametric Bootstrap CIs:</b> 10 000 resamples (fixed seed = 42) yield 95% percentile CIs [10]."])
+
+H("3.8 Limitations of the Modelling Framework", 2)
+B(["Zero-dimensional PSRs neglect spatial temperature gradients, flame front propagation, and turbulence\u2013chemistry interactions.",
+   "Only one kinetic mechanism (Tamaoki et al., 2024) was used; kinetic parameter uncertainty was not propagated.",
+   "Phases 2\u20134 focus on the equimolar 50% NH<sub>3</sub> / 50% H<sub>2</sub> blend; blend sensitivity of Phases 3\u20134 remains future work.",
+   "Nineteen main-study cases (3.1%) did not converge within 100<i>\u03c4</i> and are excluded, leaving 469 matched Phase 1 pairs."])
+
+H("3.9 Conclusion", 2)
+J("Chapter 3 established the governing conservation relations, reactor extensions for Phases 1\u20134, complete ROP/pathway "
+  "diagnostics, and statistical testing protocol. Chapter 4 applies this framework to quantify the staging advantage against "
+  "a single-stage baseline and resolve the chemical origin of the NO<sub>x</sub> U-curve.")
 PB()
 
-# ================================================================ CH 4
-H("Chapter 4: Numerical Methodology", 1)
-H("4.1 Software, mechanism and code organisation", 2)
-J("Simulations use Cantera 3.0 and the Tamaoki et al. (2024) NH\u2083 mechanism (33 species, 228 reactions) shipped in the "
-  "repository as mechanisms/TamaokiNH3.yaml [1, 2]. The mid-semester report could not analyse the mechanism file; it is now "
-  "included, which is what made the baseline and ROP phases possible.")
-TABLE(pd.DataFrame([
-    ["double_stage/staged_combustion.py", "Two-stage core: equal \u03c4, decoupled \u03c4, finite mixing, gas-turbine conditions"],
-    ["single_stage/single_stage_baseline.py", "Phase 1 single-stage baseline and matched comparison"],
-    ["double_stage/rate_of_production_analysis.py", "Phase 2 ROP and reaction-path diagrams"],
-    ["double_stage/decoupled_mixing_analysis.py", "Phase 3 \u03c4\u2081/\u03c4\u2082 grid and finite-mixing comparison"],
-    ["double_stage/gas_turbine_regimes_analysis.py", "Phase 4 pressure, preheat, heat-loss sweeps"],
-    ["double_stage/statistical_significance_analysis.py", "Statistical tests and bootstrap CIs for all phases"],
-    ["docs/reports/build_end_semester_report.py", "Regenerates this report from the result CSV files"],
-], columns=["Module", "Purpose"]), "Code modules.", fs=9, widths=[7, 8.5])
-H("4.2 Computational campaigns", 2)
-TABLE(pd.DataFrame([
-    ["Main study", "x_NH3 0\u20131 (11), \u03c6\u2081 1.0\u20132.0 (11), \u03c4 20\u2013100 ms (5)", "300 K, 1 atm", "605 (586 conv.)"],
-    ["Phase 1 baseline", "x_NH3 (11), \u03c4 20\u2013200 ms (8)", "300 K, 1 atm", "88 single-stage; 469 matched"],
-    ["Phase 2 ROP", "x_NH3 = 0.5, \u03c4 = 60 ms, \u03c6\u2081 1.0\u20132.0 (11)", "300 K, 1 atm", "11 (both stages)"],
-    ["Phase 3a \u03c4\u2081/\u03c4\u2082", "x_NH3 = 0.5, \u03c6\u2081 \u2208 {1.2,1.4,1.6,1.8,2.0}, \u03c4\u2081 10\u201350, \u03c4\u2082 20\u2013100 ms", "300 K, 1 atm", "125"],
-    ["Phase 3b mixing", "x_NH3 = 0.5, \u03c6\u2081 1.0\u20132.0 (11), N = 1, 3, 5; \u03c4\u2081 = 30, \u03c4\u2082 = 60 ms", "300 K, 1 atm", "33"],
-    ["Phase 4a pressure", "x_NH3 = 0.5, \u03c6\u2081 (11), P = 1, 5, 10, 20, 30 atm; \u03c4\u2081 = 40, \u03c4\u2082 = 60 ms", "300 K", "55"],
-    ["Phase 4b preheat", "\u03c6\u2081 (7), T_in = 300, 450, 600, 750 K", "10 atm", "28"],
-    ["Phase 4c heat loss", "\u03c6\u2081 (7), U = 0, 500, 1500, 3000 W m\u207b\u00b2 K\u207b\u00b9", "15 atm, 650 K", "28"],
-], columns=["Campaign", "Parameter space", "Fixed conditions", "Cases"]), "Simulation campaigns; all at \u03c6 = 0.9 overall. All Phase 1\u20134 cases converged except where noted.", fs=8.5, widths=[2.6, 7.2, 2.7, 2.9])
-H("4.3 Verification", 2)
-J("The overall equivalence ratio is preserved to 1.1 \u00d7 10\u207b\u00b9\u2076 (absolute) in converged cases. Phase 3 and 4 sweeps "
-  "converged in all 125 + 33 + 55 + 28 + 28 cases. Case-to-case consistency was checked by recovering the main-study values "
-  "(e.g. \u03c4\u2081 = \u03c4\u2082 slices and N = 1 reproduce the instantaneous-mixing results) and the decoupled/finite-mixing "
-  "tests show consistent trends across \u03c6\u2081.")
-H("4.4 Limitations of the numerical approach", 2)
-B(["Zero-dimensional ideal mixing within each reactor (finite-rate mixing is approximated by a reactor sequence).",
-   "A single mechanism is used; no mechanism-uncertainty study was done.",
-   "Deterministic output: confidence intervals describe variability across operating conditions, not measurement noise.",
-   "19 main-study cases did not converge and are excluded; Phase 1 comparisons therefore use 469 matched pairs."])
-PB()
+# ================================================================ CHAPTER 4
+H("Chapter 4: Baseline Quantification and Chemical Kinetic Pathway Analysis", 1)
+H("4.1 Introduction", 2)
+J("This chapter presents the first two major end-semester contributions: quantifying the exact NO<sub>x</sub> reduction benefit of "
+  "air staging relative to an identical-condition single-stage combustor (Phase 1), and resolving the elementary chemical "
+  "reactions and nitrogen-flux pathways responsible for the non-monotonic U-shaped NO<sub>x</sub> profile (Phase 2). Section 4.2 "
+  "recaps the mid-semester reference trends, Section 4.3 analyses the Phase 1 baseline comparison, Section 4.4 decomposes "
+  "the Stage-1 and Stage-2 ROP rates, Section 4.5 examines the Graphviz nitrogen pathway diagrams, and Section 4.6 concludes.")
 
-# ================================================================ CH 5
-H("Chapter 5: Results and Discussion", 1)
-H("5.1 Recap of the 605-case parametric study", 2)
-J("The principal findings of the mid-semester campaign are reproduced here as the reference against which the new "
-  "phases are measured. Final temperature ranges from 1908 to 2349 K and falls from 2335 K (pure H\u2082) to 1930 K (pure NH\u2083); "
-  "final NO\u2093 ranges from 891 to 6772 ppm, is non-monotonic in x_NH3 and \u03c6\u2081, and H\u2082 slip falls from 8787 to 1011 ppm "
-  "with NH\u2083 fraction.")
-FIGURE(MID_IMG / "image3.png", "Main effect of NH\u2083 fraction on final temperature (mean over converged cases).", 11)
-FIGURE(MID_IMG / "image6.png", "Mean final NO\u2093 versus \u03c6\u2081: the U-shaped response investigated in Phase 2.", 11)
-FIGURE(MID_IMG / "image10.png", "Final NO\u2093 map over NH\u2083 fraction and \u03c6\u2081 at \u03c4 = 60 ms.", 11)
-eta_tab = pd.DataFrame([
-    ["T_final", "98.1%", "0.6%", "0.4%"], ["NO\u2093", "18.6%", "25.4%", "2.8%"],
-    ["H\u2082 slip", "90.7%", "3.1%", "2.9%"], ["\u0394T (stage 2)", "0.3%", "99.3%", "0.0%"],
-    ["\u0394NO\u2093 (stage 2)", "33.2%", "48.0%", "0.2%"]], columns=["Response", "NH\u2083 fraction \u03b7\u00b2", "\u03c6\u2081 \u03b7\u00b2", "\u03c4 \u03b7\u00b2"])
-TABLE(eta_tab, "Main-effect variance fractions from the 605-case study (mid-semester).", widths=[4, 3.5, 3.5, 3.5])
+H("4.2 Mid-Semester 605-Case Parametric Reference", 2)
+J("Across the 586 converged mid-semester cases, final temperature spans 1908.5\u20132349.0 K and falls monotonically by 404.4 K "
+  "(2334.7 \u2192 1930.4 K) as fuel shifts from pure H<sub>2</sub> to pure NH<sub>3</sub> (Figure {{FIG_MTEMP}}). Final NO<sub>x</sub> spans 891.4\u20136771.5 ppm "
+  "(mean 2569.7 ppm) and exhibits a distinct U-shaped minimum near <i>\u03c6</i><sub>1</sub> = 1.2\u20131.3 (mean 1676.6 ppm at <i>\u03c6</i><sub>1</sub> = 1.2 vs. "
+  "3772.8 ppm at <i>\u03c6</i><sub>1</sub> = 1.0 and 3390.3 ppm at <i>\u03c6</i><sub>1</sub> = 2.0, Figure {{FIG_MU}}). As Table {{TAB_ETA}} summarises, main-effect "
+  "<i>\u03b7</i><sup>2</sup> shows that fuel composition controls <i>T</i><sub>final</sub> (98.1%) and H<sub>2</sub> slip (90.7%), <i>\u03c6</i><sub>1</sub> controls Stage-2 <i>\u0394T</i> (99.3%), "
+  "and both parameters jointly govern final NO<sub>x</sub> (Figure {{FIG_MNMAP}}).")
+fig_mtemp = FIGURE(MID_IMG / "image3.png", "Mid-semester reference: final PSR temperature versus NH<sub>3</sub> mole fraction at <i>\u03c4</i> = 60 ms.", 11.0)
+fig_mu = FIGURE(MID_IMG / "image6.png", "Mid-semester reference: mean final NO<sub>x</sub> versus primary equivalence ratio <i>\u03c6</i><sub>1</sub> showing the U-shaped response.", 11.0)
+fig_mnmap = FIGURE(MID_IMG / "image10.png", "Mid-semester reference: 2D final NO<sub>x</sub> contour map over NH<sub>3</sub> fraction and <i>\u03c6</i><sub>1</sub> at <i>\u03c4</i> = 60 ms.", 11.0)
+tab_eta = TABLE(pd.DataFrame([
+    ["<i>T</i><sub>final</sub> (K)", "98.1%", "0.6%", "0.4%"],
+    ["NO<sub>x</sub> (ppm)", "18.6%", "25.4%", "2.8%"],
+    ["NH<sub>3</sub> slip (ppm)", "31.3%", "14.7%", "3.9%"],
+    ["H<sub>2</sub> slip (ppm)", "90.7%", "3.1%", "2.9%"],
+    ["<i>\u0394T</i> (K)", "0.3%", "99.3%", "0.0%"],
+    ["<i>\u0394</i>NO<sub>x</sub> (ppm)", "33.2%", "48.0%", "0.2%"],
+], columns=["Response", "<i>x</i><sub>NH3</sub> <i>\u03b7</i><sup>2</sup>", "<i>\u03c6</i><sub>1</sub> <i>\u03b7</i><sup>2</sup>", "<i>\u03c4</i> <i>\u03b7</i><sup>2</sup>"]),
+    "Mid-semester main-effect variance fractions (<i>\u03b7</i><sup>2</sup>) over 586 converged cases.", widths=[4.0, 4.0, 4.0, 4.0])
 
-# ------------------------------------------------------------ Phase 1
-H("5.2 Phase 1: Single-stage baseline and quantified staging benefit", 2)
-J("A single PSR with identical fuel blends, \u03c6 = 0.9, inlet state, and with total residence time equal to \u03c4\u2081 + \u03c4\u2082 "
-  "of the staged configuration was simulated for 11 blends and 8 residence times (88 cases) and matched to 469 converged "
-  "staged cases. For these 469 points the mean NO\u2093 reduction is "
-  f"{cmp_.NOx_reduction_pct.mean():.1f}% and the median reduction is {cmp_.NOx_reduction_pct.median():.1f}%; staging gives "
-  f"lower NO\u2093 in {(cmp_.NOx_reduction_pct > 0).mean() * 100:.1f}% of cases. The maximum reduction is {cmp_.NOx_reduction_pct.max():.1f}% "
-  "(x_NH3 = 0.20, \u03c6\u2081 = 2.0, \u03c4 = 20 ms: 10 158 \u2192 973 ppm).")
+H("4.3 Single-Stage Baseline and Quantified Staging Benefit (Phase 1)", 2)
+J("To isolate the benefit of two-stage combustion, 88 single-stage lean PSR cases (<i>\u03c6</i> = 0.9) were simulated across all 11 "
+  "fuel blends and 8 residence times (matching both stage <i>\u03c4</i> and total combustor residence time 2<i>\u03c4</i>). Merging against the "
+  "converged two-stage dataset yields 469 matched pairs (Table {{TAB_B1}}).")
 g = cmp_.groupby("NH3_frac").agg(single=("NOx_single_ppm", "mean"), staged=("NOx_ppm", "mean"),
                                  red=("NOx_reduction_pct", "mean"), mx=("NOx_reduction_pct", "max"),
                                  mn=("NOx_reduction_pct", "min"), n=("NOx_ppm", "size")).reset_index()
-t1 = pd.DataFrame({"x_NH3": g.NH3_frac.round(1), "n": g.n, "Single-stage NO\u2093 (ppm)": g.single.round(0).astype(int),
-                   "Staged NO\u2093 (ppm)": g.staged.round(0).astype(int), "Mean reduction (%)": g.red.round(1),
-                   "Best (%)": g.mx.round(1), "Worst (%)": g.mn.round(1)})
-TABLE(t1, "Single-stage vs staged NO\u2093 by fuel blend (means over matched \u03c6\u2081, \u03c4).", widths=[1.8, 1.4, 3, 2.6, 2.6, 2, 2])
-FIGURE(PLOTS / "baseline_nox_comparison.png", "Staged versus single-stage NO\u2093 across fuel blends.", 14)
-FIGURE(PLOTS / "staging_benefit_heatmap.png", "Staging benefit map: NO\u2093 reduction over x_NH3 and \u03c6\u2081.", 14)
-J("The benefit is strongly blend dependent. Pure H\u2082 is the only fuel for which staging is a net penalty "
-  "(down to \u221268.4%): there is no fuel nitrogen to divert to N\u2082, so the extra high-temperature residence time simply adds "
-  "thermal NO. For x_NH3 \u2265 0.10 the mean reduction is 60.1% (95% CI 57.6\u201362.5%). At high \u03c6\u2081 and NH\u2083-rich blends staging can also "
-  "lose (x_NH3 = 0.8, \u03c6\u2081 = 2.0: \u221247.6%) because of the right-branch surge explained in Section 5.3. Thus staging is "
-  "effective only inside a window of \u03c6\u2081 that shifts with fuel composition.")
-FIGURE(PLOTS / "baseline_tradeoff_scatter.png", "NO\u2093 versus unburnt-fuel slip trade-off for staged and single-stage cases.", 12)
+t1 = pd.DataFrame({
+    "<i>x</i><sub>NH3</sub>": g.NH3_frac.round(1),
+    "Pairs (<i>n</i>)": g.n,
+    "Single-stage NO<sub>x</sub> (ppm)": g.single.round(0).astype(int),
+    "Staged NO<sub>x</sub> (ppm)": g.staged.round(0).astype(int),
+    "Mean cut (%)": g.red.round(1),
+    "Best (%)": g.mx.round(1),
+    "Worst (%)": g.mn.round(1),
+})
+tab_b1 = TABLE(t1, "Single-stage vs. two-stage NO<sub>x</sub> emissions by fuel blend (averaged over matched <i>\u03c6</i><sub>1</sub> and <i>\u03c4</i>).",
+               widths=[1.8, 1.5, 3.1, 2.7, 2.3, 2.2, 2.2])
+fig_b1 = FIGURE(PLOTS / "baseline_nox_comparison.png", "Final NO<sub>x</sub> emissions: two-stage staged combustion versus matched single-stage baselines across NH<sub>3</sub> fuel fraction at <i>\u03c4</i> = 60 ms.", 14.0)
+fig_b2 = FIGURE(PLOTS / "staging_benefit_heatmap.png", "Two-stage combustion advantage contour map (% NO<sub>x</sub> reduction vs. single-stage baseline) over <i>x</i><sub>NH3</sub> and <i>\u03c6</i><sub>1</sub> at <i>\u03c4</i> = 60 ms.", 14.0)
+J(f"Across all 469 matched comparisons, two-stage combustion lowers NO<sub>x</sub> by an average of {cmp_.NOx_reduction_pct.mean():.1f}% "
+  f"(median {cmp_.NOx_reduction_pct.median():.1f}%), beating single-stage combustion in {(cmp_.NOx_reduction_pct > 0).sum()} of 469 cases (93.6%). "
+  f"As shown in Figure {{FIG_B1}} and Table {{TAB_B1}}, single-stage lean combustion of NH<sub>3</sub>/H<sub>2</sub> peaks above 8300 ppm NO<sub>x</sub> "
+  f"at <i>x</i><sub>NH3</sub> = 0.20\u20130.30 because abundant H<sub>2</sub>-derived O/OH radicals rapidly oxidise fuel nitrogen; staging at "
+  f"<i>\u03c6</i><sub>1</sub> = 1.6\u20132.0 slashes emissions to ~973\u20131014 ppm (up to 90.4% reduction). Excluding pure H<sub>2</sub> (where no fuel-N exists "
+  f"so extra staging residence time generates thermal NO, causing a \u221268.4% penalty at <i>\u03c6</i><sub>1</sub> = 1.0), ammonia-containing blends "
+  f"(<i>x</i><sub>NH3</sub> \u2265 0.10) average a 60.1% NO<sub>x</sub> cut. Figure {{FIG_B2}} maps the operational staging window: deep rich staging "
+  f"(<i>\u03c6</i><sub>1</sub> \u2248 2.0) remains advantageous for H<sub>2</sub>-rich blends, whereas at high ammonia shares (<i>x</i><sub>NH3</sub> \u2265 0.70) over-rich "
+  f"staging enters a penalty corner (\u221247.6% at <i>x</i><sub>NH3</sub> = 0.80, <i>\u03c6</i><sub>1</sub> = 2.0). Figure {{FIG_B3}} confirms that staging "
+  f"achieves this NO<sub>x</sub> reduction while simultaneously maintaining lower total unburnt fuel slip than single-stage operation.")
+fig_b3 = FIGURE(PLOTS / "baseline_tradeoff_scatter.png", "Pareto trade-off comparison between final NO<sub>x</sub> and unburnt fuel slip (NH<sub>3</sub> + H<sub>2</sub>) for staged and single-stage simulations.", 12.5)
 
-# ------------------------------------------------------------ Phase 2
-H("5.3 Phase 2: Rate-of-production and reaction-pathway analysis", 2)
-J("For x_NH3 = 0.5 and \u03c4 = 60 ms the full net-rate-of-progress vector was extracted for both stages at all 11 \u03c6\u2081 "
-  "values, and NO production was decomposed by reaction. Table 6 gives the stage-resolved NO\u2093 and the intermediates "
-  "leaving Stage 1.")
+H("4.4 Elementary Rate-of-Production Analysis of the U-Curve (Phase 2)", 2)
+J("To uncover why staging exhibits a U-shaped NO<sub>x</sub> profile against <i>\u03c6</i><sub>1</sub> and why NH<sub>3</sub>-rich right-branch cases lose to "
+  "single-stage combustion, detailed stage-resolved species and ROP diagnostics were extracted across <i>\u03c6</i><sub>1</sub> = 1.0\u20132.0 at "
+  "<i>x</i><sub>NH3</sub> = 0.50 and <i>\u03c4</i> = 60 ms (Table {{TAB_ROP}} and Figure {{FIG_ROP1}}).")
 t2 = rop[["Phi_1", "T_stage1_K", "O2_stage1_pct", "NOx_stage1_ppm", "Delta_NOx_ppm", "NOx_stage2_ppm",
           "NH3_stage1_ppm", "NH2_stage1_ppm", "NH_stage1_ppm"]].copy()
-t2.columns = ["\u03c6\u2081", "T\u2081 (K)", "O\u2082 Stage 1 (%)", "NO\u2093 Stage 1 (ppm)", "\u0394NO\u2093 Stage 2 (ppm)",
-              "NO\u2093 final (ppm)", "NH\u2083 out of S1 (ppm)", "NH\u2082 out of S1 (ppm)", "NH out of S1 (ppm)"]
+t2.columns = ["<i>\u03c6</i><sub>1</sub>", "<i>T</i><sub>1</sub> (K)", "O<sub>2</sub> S1 (%)", "NO<sub>x</sub> S1 (ppm)", "<i>\u0394</i>NO<sub>x</sub> S2 (ppm)",
+              "NO<sub>x</sub> final (ppm)", "NH<sub>3</sub> out S1 (ppm)", "NH<sub>2</sub> out S1 (ppm)", "NH out S1 (ppm)"]
 for c in t2.columns[1:]:
-    t2[c] = t2[c].round(1 if c not in ("O\u2082 Stage 1 (%)",) else 2)
-TABLE(t2, "Stage-resolved NO\u2093 and intermediates (x_NH3 = 0.5, \u03c4 = 60 ms).", fs=8)
-FIGURE(PLOTS / "rop_u_curve_pathway_mechanism.png",
-       "Decomposition of the U-curve: Stage-1 NO\u2093 (monotonic fall), Stage-2 NO\u2093 generation (monotonic rise) and amine carry-over.", 15)
-J("The U-curve is therefore not a single phenomenon. Stage-1 NO\u2093 falls monotonically from 4400 to 29 ppm as oxygen is "
-  "removed and temperature drops (2168 \u2192 1720 K), shutting down thermal and prompt NO. Stage-2 NO\u2093 generation rises "
-  "monotonically from \u2212191 to +3586 ppm as the NH\u2082 leaving Stage 1 grows from 5.2 to 85.7 ppm and unburnt NH\u2083 from 22 to "
-  "about 8560 ppm (Table 6). The sum of a falling and a rising monotonic term has a "
-  "minimum, here at \u03c6\u2081 \u2248 1.3 (986 ppm).")
-# Top NO reactions per regime
-def top_rx(phi, stage, k=4):
-    d = ropr[(ropr.Phi_1.round(2) == phi) & (ropr.Stage == stage)].copy()
-    pos = d.nlargest(k, "NO_contribution_kmol_m3_s")[["Equation", "NO_contribution_kmol_m3_s"]]
-    neg = d.nsmallest(k, "NO_contribution_kmol_m3_s")[["Equation", "NO_contribution_kmol_m3_s"]]
-    return pos, neg
-rows = []
-for phi, stage in [(1.0, "Stage 1"), (1.3, "Stage 1"), (1.3, "Stage 2"), (2.0, "Stage 2")]:
-    pos, neg = top_rx(phi, stage)
+    t2[c] = t2[c].round(2 if "O<sub>2</sub>" in c else 1)
+tab_rop = TABLE(t2, "Stage-resolved temperature, NO<sub>x</sub>, and primary-outlet amine intermediates (<i>x</i><sub>NH3</sub> = 0.50, <i>\u03c4</i> = 60 ms).", fs=8.0)
+fig_rop1 = FIGURE(PLOTS / "rop_u_curve_pathway_mechanism.png",
+                  "Elementary kinetic decomposition of the NO<sub>x</sub> U-curve: (a) Stage-1 vs. final temperature and NO<sub>x</sub>, (b) amine radical carry-over from Stage 1, and (c) dominant Stage-2 NO elementary reaction rates.", 15.5)
+J(f"Table {{TAB_ROP}} and Figure {{FIG_ROP1}}(a) show that the U-shaped final NO<sub>x</sub> curve is the algebraic sum of two opposite "
+  f"monotonic trends: Stage-1 NO<sub>x</sub> drops monotonically from 4399.7 ppm (<i>\u03c6</i><sub>1</sub> = 1.0) to 29.2 ppm (<i>\u03c6</i><sub>1</sub> = 2.0) as primary "
+  f"temperature falls from 2167.9 K to 1720.2 K, whereas Stage-2 NO<sub>x</sub> generation (<i>\u0394</i>NO<sub>x</sub>) climbs monotonically from "
+  f"\u2212190.7 ppm (net destruction) to +3585.8 ppm. Simultaneously, Figure {{FIG_ROP1}}(b) shows Stage-1 outlet carry-over surging: "
+  f"NH<sub>2</sub> increases 16.4\u00d7 (5.2 \u2192 85.7 ppm), NH increases 8.3\u00d7 (0.9 \u2192 7.6 ppm), and unburnt NH<sub>3</sub> climbs nearly 400\u00d7 "
+  f"(21.9 \u2192 8558.2 ppm). Figure {{FIG_ROP1}}(c) resolves the Stage-2 kinetic competition: while NH<sub>2</sub> + NO \u21c4 H<sub>2</sub>O + N<sub>2</sub> "
+  f"and NH<sub>2</sub> + NO \u21c4 NNH + OH destroy NO at rates up to \u22121.36 \u00d7 10<sup>\u22125</sup> and \u22122.28 \u00d7 10<sup>\u22125</sup> kmol m<sup>\u22123</sup> s<sup>\u22121</sup>, "
+  f"oxidative branching via HNO + OH \u21c4 H<sub>2</sub>O + NO overwhelms them by more than an order of magnitude (+4.01 \u00d7 10<sup>\u22124</sup> "
+  f"kmol m<sup>\u22123</sup> s<sup>\u22121</sup> at <i>\u03c6</i><sub>1</sub> = 2.0, 24\u00d7 its rate at <i>\u03c6</i><sub>1</sub> = 1.0), alongside NH + O<sub>2</sub> \u21c4 NO + OH (>9500\u00d7 higher than at <i>\u03c6</i><sub>1</sub> = 1.0).")
+
+def _top_rx(phi, stage, k=3):
+    d = ropr[(ropr.Phi_1.round(2) == phi) & (ropr.Stage == stage)]
+    return d.nlargest(k, "NO_contribution_kmol_m3_s"), d.nsmallest(k, "NO_contribution_kmol_m3_s")
+
+rx_rows = []
+for phi, stg in [(1.0, "Stage 1"), (1.3, "Stage 1"), (1.3, "Stage 2"), (1.8, "Stage 2"), (2.0, "Stage 2")]:
+    pos, neg = _top_rx(phi, stg, k=3)
     for _, r in pos.iterrows():
-        rows.append([phi, stage, "NO source", r.Equation, f"{r.NO_contribution_kmol_m3_s:+.2e}"])
+        rx_rows.append([phi, stg, "NO source", r.Equation, f"{r.NO_contribution_kmol_m3_s:+.2e}"])
     for _, r in neg.iterrows():
-        rows.append([phi, stage, "NO sink", r.Equation, f"{r.NO_contribution_kmol_m3_s:+.2e}"])
-TABLE(pd.DataFrame(rows, columns=["\u03c6\u2081", "Stage", "Role", "Reaction", "NO rate (kmol m\u207b\u00b3 s\u207b\u00b9)"]),
-      "Dominant NO-producing and NO-consuming reactions in selected regimes (from rop_no_reactions_by_phi1.csv).", fs=8,
-      widths=[1.2, 1.7, 2, 6.5, 3.5])
-FIGURE(PLOTS / "rop_top_no_reactions_stage1_vs_stage2.png", "Dominant elementary NO source and sink reactions in each stage across the three regimes.", 15)
-J("Three regimes follow from the fluxes:")
-B(["Left branch (\u03c6\u2081 = 1.0\u20131.2): a hot, oxygen-containing Stage 1 forms NO directly (HNO + OH \u21c4 H\u2082O + NO, "
-   "NH + O\u2082 \u21c4 NO + OH, plus Zeldovich steps) and Stage 2 only adds a little.",
-   "Valley (\u03c6\u2081 \u2248 1.2\u20131.4): Stage 1 is oxygen-lean enough that NH\u2082 + NO \u21c4 N\u2082 + H\u2082O and NH + NO \u21c4 N\u2082 + OH "
-   "(thermal de-NO\u2093) consume NO, while the amine carry-over into Stage 2 is still moderate (23 ppm NH\u2082 at \u03c6\u2081 = 1.3).",
-   "Right branch (\u03c6\u2081 \u2265 1.6): Stage 1 is oxygen-starved, so NH\u2083 and NH\u2082 leave unburnt; the large secondary air "
-   "flow (45\u201355% of the air) oxidises them through HNO + OH \u21c4 H\u2082O + NO (about 14\u00d7 the \u03c6\u2081 = 1.0 rate) and "
-   "NH + O\u2082 \u21c4 NO + OH (more than 5000\u00d7 higher)."])
-J("The nitrogen-flux graphs below show the same picture graphically: at \u03c6\u2081 = 1.0 the NO node dominates the nitrogen "
-  "outflow of Stage 1, while at \u03c6\u2081 = 1.8 the Stage-2 graph is dominated by the NH\u2093 \u2192 HNO/NO arrows.")
-FIGURE(PLOTS / "reaction_path_phi1_1p0_stage1.png", "Nitrogen reaction-path diagram, Stage 1, \u03c6\u2081 = 1.0 (x_NH3 = 0.5, \u03c4 = 60 ms).", 13)
-FIGURE(PLOTS / "reaction_path_phi1_1p8_stage2.png", "Nitrogen reaction-path diagram, Stage 2, \u03c6\u2081 = 1.8.", 13)
+        rx_rows.append([phi, stg, "NO sink", r.Equation, f"{r.NO_contribution_kmol_m3_s:+.2e}"])
+tab_rxn = TABLE(pd.DataFrame(rx_rows, columns=["<i>\u03c6</i><sub>1</sub>", "Stage", "Role", "Elementary Reaction", "NO Rate (kmol m<sup>\u22123</sup> s<sup>\u22121</sup>)"]),
+                "Top NO-producing and NO-consuming elementary reactions across regimes (from complete NO ROP dataset).", fs=8.0,
+                widths=[1.3, 1.8, 2.0, 6.9, 4.0])
+fig_rop2 = FIGURE(PLOTS / "rop_top_no_reactions_stage1_vs_stage2.png", "Top elementary NO source (blue) and sink (red) reactions in Stage 1 and Stage 2 across the left branch (<i>\u03c6</i><sub>1</sub> = 1.0), valley (1.3), and right branch (1.8).", 15.0)
+J(f"Table {{TAB_RXN}} and Figure {{FIG_ROP2}} establish three distinct chemical regimes across <i>\u03c6</i><sub>1</sub>:")
+B(["<b>Left Branch (<i>\u03c6</i><sub>1</sub> = 1.0\u20131.2):</b> Near-stoichiometric primary conditions preserve high temperature (2168 K) and "
+   "available oxygen, generating 4400 ppm NO<sub>x</sub> inside Stage 1 via N + OH \u21c4 H + NO, HNO + OH \u21c4 H<sub>2</sub>O + NO, and "
+   "H + HNO \u21c4 H<sub>2</sub> + NO. Adding 10% secondary air in Stage 2 lowers temperature by 61 K and yields net de-NO<sub>x</sub> (\u2212191 ppm).",
+   "<b>DeNOx Valley Minimum (<i>\u03c6</i><sub>1</sub> \u2248 1.2\u20131.4):</b> Moderate richness drops Stage-1 NO<sub>x</sub> by an order of magnitude "
+   "(437 ppm at <i>\u03c6</i><sub>1</sub> = 1.3) as NH + NO \u21c4 H + N<sub>2</sub>O, N + NO \u21c4 N<sub>2</sub> + O, and NH<sub>2</sub> + NO \u21c4 NNH + OH / H<sub>2</sub>O + N<sub>2</sub> "
+   "convert NO towards N<sub>2</sub>, while amine carry-over remains modest (23.3 ppm NH<sub>2</sub>), limiting final NO<sub>x</sub> to 986.4 ppm.",
+   "<b>Right Branch (<i>\u03c6</i><sub>1</sub> \u2265 1.6):</b> Severe oxygen starvation reduces Stage-1 NO<sub>x</sub> below 110 ppm, but leaves large "
+   "unburnt NH<sub>3</sub> and NH<sub>2</sub> inventories. Introducing 45\u201355% secondary air in Stage 2 drives vigorous oxidative branching "
+   "through HNO + OH \u21c4 H<sub>2</sub>O + NO (+2.34 \u00d7 10<sup>\u22124</sup> at <i>\u03c6</i><sub>1</sub> = 1.8) alongside rapid NO\u2013HONO\u2013NO<sub>2</sub> radical cycling "
+   "(H + NO<sub>2</sub> \u21c4 NO + OH vs. NO + OH (+M)), regenerating +2483 to +3586 ppm NO<sub>x</sub>."])
 
-# ------------------------------------------------------------ Phase 3
-H("5.4 Phase 3: Reactor architecture and mixing physics", 2)
-H("5.4.1 Decoupled residence times", 3)
-J("The grid \u03c4\u2081 \u2208 {10,\u202620,\u202630,\u202640,\u202650} ms \u00d7 \u03c4\u2082 \u2208 {20,\u202640,\u202660,\u202680,\u2026100} ms was run at five values of \u03c6\u2081 (x_NH3 = 0.5, 125 cases, all converged).")
+H("4.5 Nitrogen Reaction-Pathway Diagrams", 2)
+J("Normalised element-\u2018N\u2019 reaction-pathway graphs (Figure {{FIG_RP1}} through Figure {{FIG_RP4}}) directly visualise how "
+  "nitrogen flux topology reorganises across staging regimes.")
+fig_rp1 = FIGURE(PLOTS / "reaction_path_phi1_1p0_stage1.png", "Normalised nitrogen reaction-path diagram in Stage 1 at <i>\u03c6</i><sub>1</sub> = 1.0 (left branch; peak flux scale = 0.012 kmol m<sup>\u22123</sup> s<sup>\u22121</sup>).", 10.5)
+fig_rp2 = FIGURE(PLOTS / "reaction_path_phi1_1p3_stage1.png", "Normalised nitrogen reaction-path diagram in Stage 1 at <i>\u03c6</i><sub>1</sub> = 1.3 (valley; scale = 0.024 kmol m<sup>\u22123</sup> s<sup>\u22121</sup>).", 8.8)
+fig_rp3 = FIGURE(PLOTS / "reaction_path_phi1_1p8_stage1.png", "Normalised nitrogen reaction-path diagram in Stage 1 at <i>\u03c6</i><sub>1</sub> = 1.8 (right branch Stage 1; scale = 0.037 kmol m<sup>\u22123</sup> s<sup>\u22121</sup>).", 9.5)
+fig_rp4 = FIGURE(PLOTS / "reaction_path_phi1_1p8_stage2.png", "Normalised nitrogen reaction-path diagram in Stage 2 at <i>\u03c6</i><sub>1</sub> = 1.8 (right branch Stage 2; scale = 4.5 \u00d7 10<sup>\u22124</sup> kmol m<sup>\u22123</sup> s<sup>\u22121</sup>).", 9.2)
+J("Comparing Figure {{FIG_RP1}} (<i>\u03c6</i><sub>1</sub> = 1.0), Figure {{FIG_RP2}} (<i>\u03c6</i><sub>1</sub> = 1.3), and Figure {{FIG_RP3}} (<i>\u03c6</i><sub>1</sub> = 1.8) "
+  "in Stage 1 reveals a decisive shift in nitrogen routing: at <i>\u03c6</i><sub>1</sub> = 1.0, NO forms through parallel HNO \u2192 NO (0.235) "
+  "and N \u2192 NO (0.197) fluxes and cycles through HONO and N<sub>2</sub>O; at <i>\u03c6</i><sub>1</sub> = 1.3, NO reduction to N<sub>2</sub> via "
+  "NO \u2192 N<sub>2</sub> (0.136), NO \u2192 N<sub>2</sub>O \u2192 N<sub>2</sub> (0.108), and NNH \u2192 N<sub>2</sub> (0.186) dominates; and at <i>\u03c6</i><sub>1</sub> = 1.8, "
+  "oxygen starvation activates bimolecular N\u2013N coupling (NH<sub>2</sub>/NH \u2192 N<sub>2</sub>H<sub>2</sub> \u2192 N<sub>2</sub>H<sub>3</sub> and NNH \u2192 N<sub>2</sub>, "
+  "plus NH<sub>2</sub> \u2192 N<sub>2</sub> at 0.091). In Stage 2 at <i>\u03c6</i><sub>1</sub> = 1.8 (Figure {{FIG_RP4}}), however, the carried-over "
+  "NH<sub>3</sub> \u2192 NH<sub>2</sub> stream branches strongly through NH<sub>2</sub> \u2192 HNO (0.306) and NH \u2192 HNO (0.234) into the dominant "
+  "HNO \u2192 NO arrow (0.548) accompanied by fast NO \u2192 HONO \u2192 NO<sub>2</sub> \u2192 NO cycling (0.381/0.378/0.379), confirming "
+  "the Stage-2 oxidation surge visually.")
+
+H("4.6 Conclusion", 2)
+J("Phase 1 proved that rich\u2013lean staging cuts NO<sub>x</sub> by 55.1% overall (60.1% across NH<sub>3</sub>-containing blends, up to 90.4%), "
+  "and Phase 2 demonstrated through complete ROP and N-flux analysis that the right-branch failure stems from Stage-1 "
+  "amine carry-over oxidised via HNO + OH in Stage 2. Chapter 5 examines whether decoupling stage residence times and "
+  "softening secondary air mixing can eliminate this carry-over penalty and evaluates performance under gas-turbine conditions.")
+PB()
+
+# ================================================================ CHAPTER 5
+H("Chapter 5: Reactor Architecture, Mixing Physics, and Gas-Turbine Regimes", 1)
+H("5.1 Introduction", 2)
+J("Having established the chemical cause of the right-branch NO<sub>x</sub> surge in Chapter 4, this chapter removes the remaining "
+  "idealised reactor and boundary assumptions across Phases 3 and 4. Section 5.2 investigates decoupled primary and secondary "
+  "residence times (<i>\u03c4</i><sub>1</sub> \u2260 <i>\u03c4</i><sub>2</sub>), Section 5.3 models finite-rate progressive secondary dilution, Sections 5.4\u20135.6 examine "
+  "gas-turbine pressure, air preheat, and wall heat loss, and Section 5.7 synthesises the architectural conclusions.")
+
+H("5.2 Decoupled Stage Residence Times", 2)
+J("A 125-case 2D sweep was executed across <i>\u03c4</i><sub>1</sub> \u2208 [10, 50] ms and <i>\u03c4</i><sub>2</sub> \u2208 [20, 100] ms at five primary equivalence "
+  "ratios (<i>\u03c6</i><sub>1</sub> = 1.2, 1.4, 1.6, 1.8, 2.0) for <i>x</i><sub>NH3</sub> = 0.50 (100% converged; Tables {{TAB_D1}} and {{TAB_D2}}).")
 a = dec.pivot_table(index="Phi_1", columns="Tau_1_ms", values="NOx_final_ppm", aggfunc="mean").round(0).astype(int)
-a.columns = [f"\u03c4\u2081 = {int(c)} ms" for c in a.columns]
-a.insert(0, "\u03c6\u2081", a.index)
-TABLE(a.reset_index(drop=True), "Final NO\u2093 (ppm) versus \u03c4\u2081, averaged over \u03c4\u2082.", widths=[1.5, 2.4, 2.4, 2.4, 2.4, 2.4])
-b = dec.pivot_table(index="Phi_1", columns="Tau_1_ms", values="NH2_primary_ppm", aggfunc="mean").round(1)
-b.columns = [f"\u03c4\u2081 = {int(c)} ms" for c in b.columns]
-b.insert(0, "\u03c6\u2081", b.index)
-TABLE(b.reset_index(drop=True), "NH\u2082 leaving the primary reactor (ppm) versus \u03c4\u2081, averaged over \u03c4\u2082.", widths=[1.5, 2.4, 2.4, 2.4, 2.4, 2.4])
-FIGURE(PLOTS / "decoupled_tau_2d_contour.png", "Final NO\u2093 over (\u03c4\u2081, \u03c4\u2082) at \u03c6\u2081 = 1.2, 1.4, 1.6, 2.0.", 15)
-FIGURE(PLOTS / "decoupled_tau_ratio_tradeoff.png", "Effect of the sizing ratio \u03c4\u2081/\u03c4\u2082 on NO\u2093 and fuel slip.", 13)
-J("A short rich residence time does not mitigate carry-over: the opposite holds. Increasing \u03c4\u2081 from 10 to 50 ms lowers "
-  "primary NH\u2082 at \u03c6\u2081 = 2.0 from 282 to 157 ppm and at \u03c6\u2081 = 1.2 from 48 to 19 ppm, because a longer rich residence time lets "
-  "the amine pool relax towards its equilibrium and consume NO. Final NO\u2093 falls correspondingly (\u03c6\u2081 = 2.0: 4105 \u2192 3726 ppm; "
-  "\u03c6\u2081 = 1.2: 1808 \u2192 1201 ppm). The secondary residence time acts in a different way: a longer \u03c4\u2082 reduces right-branch "
-  "NO\u2093 (\u03c6\u2081 = 2.0: 4438 \u2192 3490 ppm, \u03c4\u2082 = 20 \u2192 100 ms) and NH\u2083 slip, but slightly increases NO\u2093 near the valley "
-  "(\u03c6\u2081 = 1.2: 1367 \u2192 1484 ppm) because more time is available for thermal NO. The overall minimum of the grid is "
-  "1124 ppm at \u03c6\u2081 = 1.2, \u03c4\u2081 = 50 ms, \u03c4\u2082 = 20 ms, i.e. a long rich zone and a short lean zone. This is a sizing "
-  "recommendation that equal-\u03c4 modelling could not produce.")
-H("5.4.2 Finite-rate secondary mixing", 3)
-J("Final NO\u2093 for instantaneous mixing (N = 1) and progressive dilution (N = 3, 5) at x_NH3 = 0.5, \u03c4\u2081 = 30 ms, \u03c4\u2082 = 60 ms:")
-pv_ = fm.pivot(index="Phi_1", columns="N_mixing_stages", values="NOx_final_ppm")
-t3 = pd.DataFrame({"\u03c6\u2081": pv_.index.round(1), "N = 1": pv_[1].round(0).astype(int), "N = 3": pv_[3].round(0).astype(int),
-                   "N = 5": pv_[5].round(0).astype(int), "Reduction N = 5 vs 1 (%)": ((pv_[5] / pv_[1] - 1) * 100).round(1)})
-TABLE(t3, "Effect of progressive secondary dilution on final NO\u2093 (ppm).", widths=[1.8, 2.5, 2.5, 2.5, 4.5])
-FIGURE(PLOTS / "finite_mixing_nox_comparison.png", "NO\u2093 U-curve for N = 1, 3, 5 secondary dilution stages.", 13)
-FIGURE(PLOTS / "finite_mixing_temperature_trajectories.png", "Temperature trajectory through the progressive mixing stages.", 13)
-J("Finite-rate mixing flattens the U-curve. At \u03c6\u2081 = 2.0 final NO\u2093 falls from 3693 ppm (instantaneous) to 640 ppm (N = 3) "
-  "and 433 ppm (N = 5), \u221288.3%; at the left branch the gain is small (\u22128.8% at \u03c6\u2081 = 1.0). Physically, adding air in "
-  "small parcels keeps the intermediate stages sub-stoichiometric and hot, so NH\u2082 + NO and NH + NO keep consuming "
-  "NO instead of the NH\u2093 being oxidised abruptly. Intermediate stages pass through \u03c6 \u2248 1 (T_peak \u2248 2180 K), "
-  "but the short sub-stage time (12 ms at N = 5) limits thermal NO. The practical implication is that the "
-  "right-branch penalty of Phase 2 is partly an artefact of assuming instantaneous mixing, and that a "
-  "real combustor with progressive air injection can run at deeper staging than instantaneous-mixing models allow. "
-  "This finding is a model result; it depends on the sub-stage equal-split assumption and has not been validated "
-  "against experiment.")
+a.columns = [f"<i>\u03c4</i><sub>1</sub> = {int(c)} ms" for c in a.columns]
+a.insert(0, "<i>\u03c6</i><sub>1</sub>", a.index)
+tab_d1 = TABLE(a.reset_index(drop=True), "Final NO<sub>x</sub> (ppm) versus primary residence time <i>\u03c4</i><sub>1</sub>, averaged across <i>\u03c4</i><sub>2</sub> = 20\u2013100 ms.",
+               widths=[1.6, 2.8, 2.8, 2.8, 2.8, 2.8])
 
-# ------------------------------------------------------------ Phase 4
-H("5.5 Phase 4: Gas-turbine operating regimes", 2)
-H("5.5.1 Elevated pressure", 3)
+b = dec.pivot_table(index="Phi_1", columns="Tau_1_ms", values="NH2_primary_ppm", aggfunc="mean").round(1)
+b.columns = [f"<i>\u03c4</i><sub>1</sub> = {int(c)} ms" for c in b.columns]
+b.insert(0, "<i>\u03c6</i><sub>1</sub>", b.index)
+tab_d2 = TABLE(b.reset_index(drop=True), "Primary-outlet NH<sub>2</sub> carry-over (ppm) versus <i>\u03c4</i><sub>1</sub>, averaged across <i>\u03c4</i><sub>2</sub>.",
+               widths=[1.6, 2.8, 2.8, 2.8, 2.8, 2.8])
+fig_d1 = FIGURE(PLOTS / "decoupled_tau_2d_contour.png", "2D contour maps of final NO<sub>x</sub> over (<i>\u03c4</i><sub>1</sub>, <i>\u03c4</i><sub>2</sub>) at four <i>\u03c6</i><sub>1</sub> levels (dashed red line denotes equal <i>\u03c4</i><sub>1</sub> = <i>\u03c4</i><sub>2</sub>).", 15.0)
+fig_d2 = FIGURE(PLOTS / "decoupled_tau_ratio_tradeoff.png", "Impact of stage residence-time ratio (<i>\u03c4</i><sub>1</sub>/<i>\u03c4</i><sub>2</sub>) on final NO<sub>x</sub> emissions and residual fuel slip.", 13.5)
+J(f"Contrary to the hypothesis that shortening a rich primary zone limits radical build-up, Tables {{TAB_D1}}\u2013{{TAB_D2}} and "
+  f"Figures {{FIG_D1}}\u2013{{FIG_D2}} show the exact opposite: a shorter <i>\u03c4</i><sub>1</sub> freezes Stage 1 far from equilibrium, maximizing "
+  f"NH<sub>2</sub> carry-over (281.6 ppm at <i>\u03c4</i><sub>1</sub> = 10 ms, <i>\u03c6</i><sub>1</sub> = 2.0) and driving NO<sub>x</sub> to 4105 ppm. Extending <i>\u03c4</i><sub>1</sub> to 50 ms "
+  f"lets rich amine chemistry relax toward N<sub>2</sub>, cutting NH<sub>2</sub> carry-over to 157.2 ppm and dropping NO<sub>x</sub> by 379\u2013607 ppm across "
+  f"all <i>\u03c6</i><sub>1</sub>. Meanwhile, <i>\u03c4</i><sub>2</sub> exerts opposing effects across regimes: longer <i>\u03c4</i><sub>2</sub> (20 \u2192 100 ms) lowers right-branch "
+  f"NO<sub>x</sub> (4438 \u2192 3490 ppm at <i>\u03c6</i><sub>1</sub> = 2.0) and suppresses NH<sub>3</sub> slip below 0.1 ppm, but slightly increases valley NO<sub>x</sub> "
+  f"(1367 \u2192 1484 ppm at <i>\u03c6</i><sub>1</sub> = 1.2) via extended thermal NO formation. Consequently, the global minimum on the grid "
+  f"(1124.0 ppm) occurs at asymmetric sizing: long rich zone (<i>\u03c4</i><sub>1</sub> = 50 ms) and compact lean burnout (<i>\u03c4</i><sub>2</sub> = 20 ms) at <i>\u03c6</i><sub>1</sub> = 1.2.")
+
+H("5.3 Finite-Rate Progressive Secondary Dilution", 2)
+J("To replace instantaneous Stage-2 air addition (<i>N</i> = 1), progressive equal-parcel dilution sequences with <i>N</i> = 3 and <i>N</i> = 5 "
+  "stages were simulated across <i>\u03c6</i><sub>1</sub> = 1.0\u20132.0 at <i>x</i><sub>NH3</sub> = 0.50, <i>\u03c4</i><sub>1</sub> = 30 ms, and <i>\u03c4</i><sub>2</sub> = 60 ms (Table {{TAB_FM}}).")
+pv_ = fm.pivot(index="Phi_1", columns="N_mixing_stages", values="NOx_final_ppm")
+t3 = pd.DataFrame({
+    "<i>\u03c6</i><sub>1</sub>": pv_.index.round(1),
+    "<i>N</i> = 1 (Instantaneous)": pv_[1].round(0).astype(int),
+    "<i>N</i> = 3": pv_[3].round(0).astype(int),
+    "<i>N</i> = 5": pv_[5].round(0).astype(int),
+    "Cut <i>N</i> = 5 vs. 1 (%)": ((pv_[5] / pv_[1] - 1) * 100).round(1),
+})
+tab_fm = TABLE(t3, "Effect of progressive secondary air dilution stages (<i>N</i> = 1, 3, 5) on final NO<sub>x</sub> (ppm).",
+               widths=[1.8, 3.6, 2.4, 2.4, 3.8])
+fig_fm1 = FIGURE(PLOTS / "finite_mixing_nox_comparison.png", "Flattening of the NO<sub>x</sub> U-curve by progressive 3-stage and 5-stage finite-rate secondary air dilution.", 13.5)
+fig_fm2 = FIGURE(PLOTS / "finite_mixing_temperature_trajectories.png", "Progressive sub-stage temperature trajectories across intermediate dilution stages (<i>N</i> = 5 vs. <i>N</i> = 1).", 13.5)
+J("Progressive dilution dramatically flattens the NO<sub>x</sub> U-curve (Figure {{FIG_fm1}} and Table {{TAB_FM}}). At <i>\u03c6</i><sub>1</sub> = 2.0, final "
+  "NO<sub>x</sub> collapses from 3693 ppm (<i>N</i> = 1) to 640 ppm (<i>N</i> = 3) and 433 ppm (<i>N</i> = 5)\u2014an 88.3% cut\u2014eliminating the "
+  "right-branch penalty altogether. Figure {{FIG_fm2}} clarifies why: parcel-wise air injection walks the mixture gradually "
+  "through sub-rich intermediate zones where thermal de-NO<sub>x</sub> (NH<sub>2</sub> + NO) remains active, while each short sub-stage "
+  "(<i>\u03c4</i><sub>sub</sub> = 12 ms at <i>N</i> = 5) traverses peak stoichiometric temperatures (~2180 K) too rapidly for thermal NO to rebuild. "
+  "Although dependent on equal parcel splitting and unvalidated experimentally, this finding shows that the severe right-branch "
+  "penalty of 0-D models is partly an artefact of instantaneous mixing.")
+
+H("5.4 Elevated Combustor Pressure Regimes", 2)
+J("Phase 4a evaluated combustor pressure from 1 to 30 atm at <i>x</i><sub>NH3</sub> = 0.50, <i>T</i><sub>in</sub> = 300 K, <i>\u03c4</i><sub>1</sub> = 40 ms, and <i>\u03c4</i><sub>2</sub> = 60 ms "
+  "(Table {{TAB_PR}} and Figures {{FIG_P1}}\u2013{{FIG_P2}}).")
 pp = ps.pivot(index="Phi_1", columns="P_atm", values="NOx_ppm")
-t4 = pd.DataFrame({"\u03c6\u2081": pp.index.round(1)})
+t4 = pd.DataFrame({"<i>\u03c6</i><sub>1</sub>": pp.index.round(1)})
 for c in pp.columns:
     t4[f"{int(c)} atm"] = pp[c].round(0).astype(int).values
-TABLE(t4, "Final NO\u2093 (ppm) versus pressure (x_NH3 = 0.5, 300 K, \u03c4\u2081 = 40 ms, \u03c4\u2082 = 60 ms).", widths=[1.8, 2.5, 2.5, 2.5, 2.5, 2.5])
-FIGURE(PLOTS / "pressure_effect_nox_u_curve.png", "NO\u2093 U-curve at 1\u201330 atm.", 13)
-FIGURE(PLOTS / "pressure_no2_fraction_shift.png", "NO\u2082/NO\u2093 ratio versus pressure.", 11)
-J("Pressure suppresses the left branch strongly (\u03c6\u2081 = 1.0: 4548 \u2192 1753 ppm, \u221261.5%, from 1 to 30 atm) and the "
-  "extreme right branch (\u03c6\u2081 = 2.0: 3652 \u2192 2129 ppm, \u221241.7%), but increases NO\u2093 in the valley and "
-  "mid-right region (\u03c6\u2081 = 1.3: 1072 \u2192 1604 ppm). As a result the minimum shifts from \u03c6\u2081 = 1.3 (1 atm) through 1.2 (5 atm) to "
-  "1.1 (10\u201330 atm), and the lowest NO\u2093 stays within 1023\u20131281 ppm. The NO\u2082/NO\u2093 ratio rises from "
-  f"{ps[ps.P_atm == 1.0].NO2_ratio.mean() * 100:.3f}% to {ps[ps.P_atm == 30.0].NO2_ratio.mean() * 100:.3f}% (mean over \u03c6\u2081), consistent with faster "
-  "H + O\u2082 + M \u21c4 HO\u2082 + M recombination and NO + HO\u2082 \u21c4 NO\u2082 + OH. This mechanistic explanation is inferred from the "
-  "kinetics; it was not separately confirmed by a pressure-resolved ROP analysis.")
-H("5.5.2 Compressor-discharge preheat", 3)
+tab_pr = TABLE(t4, "Final NO<sub>x</sub> (ppm) across primary equivalence ratio and pressure (1\u201330 atm).", widths=[1.8, 2.8, 2.8, 2.8, 2.8, 2.8])
+fig_p1 = FIGURE(PLOTS / "pressure_effect_nox_u_curve.png", "Shift and flattening of the staged NO<sub>x</sub> U-curve across pressures <i>P</i> = 1\u201330 atm.", 13.5)
+fig_p2 = FIGURE(PLOTS / "pressure_no2_fraction_shift.png", "Increase in exhaust NO<sub>2</sub>/NO<sub>x</sub> partitioning with pressure.", 12.0)
+J(f"Pressure reshapes the U-curve asymmetrically (Table {{TAB_PR}}, Figure {{FIG_P1}}): it suppresses near-stoichiometric "
+  f"NO<sub>x</sub> at <i>\u03c6</i><sub>1</sub> = 1.0 by 61.5% (4548 \u2192 1753 ppm) and right-branch NO<sub>x</sub> at <i>\u03c6</i><sub>1</sub> = 2.0 by 41.7% (3652 \u2192 2129 ppm), "
+  f"while elevating valley NO<sub>x</sub> at <i>\u03c6</i><sub>1</sub> = 1.3 (1072 \u2192 1604 ppm). Consequently, the optimum primary staging ratio shifts left "
+  f"from <i>\u03c6</i><sub>1</sub> = 1.3 (1 atm) to 1.2 (5 atm) and 1.1 (10\u201330 atm), and U-curve variance collapses by 73.7%. Concurrently, "
+  f"Figure {{FIG_P2}} shows the mean NO<sub>2</sub>/NO<sub>x</sub> ratio rising 6.6-fold ({ps[ps.P_atm==1].NO2_ratio.mean()*100:.3f}% \u2192 "
+  f"{ps[ps.P_atm==30].NO2_ratio.mean()*100:.3f}%), consistent with pressure-accelerated three-body H + O<sub>2</sub> + M \u21c4 HO<sub>2</sub> + M "
+  f"recombination driving NO + HO<sub>2</sub> \u21c4 NO<sub>2</sub> + OH (inferred kinetically rather than proven by a separate high-pressure ROP run).")
+
+H("5.5 Compressor-Discharge Air Preheat", 2)
+J("At <i>P</i> = 10 atm, increasing inlet temperature from 300 K to 750 K models realistic compressor-discharge preheating "
+  "(Table {{TAB_PH}} and Figure {{FIG_PH}}).")
 pw = pre.pivot(index="Phi_1", columns="T_in_K", values="NOx_ppm")
-t5 = pd.DataFrame({"\u03c6\u2081": pw.index.round(1)})
+t5 = pd.DataFrame({"<i>\u03c6</i><sub>1</sub>": pw.index.round(1)})
 for c in pw.columns:
     t5[f"{int(c)} K"] = pw[c].round(0).astype(int).values
 mt = pre.groupby("T_in_K").agg(Nx=("NOx_ppm", "mean"), Tf=("T_final_K", "mean"))
-t5.loc[len(t5)] = ["mean NO\u2093"] + [int(round(v)) for v in mt.Nx]
-t5.loc[len(t5)] = ["mean T_final (K)"] + [int(round(v)) for v in mt.Tf]
-TABLE(t5, "Final NO\u2093 (ppm) versus inlet temperature at 10 atm.", widths=[3, 2.4, 2.4, 2.4, 2.4])
-FIGURE(PLOTS / "preheat_flame_temperature_and_nox.png", "Final temperature and NO\u2093 versus inlet temperature.", 13)
-J("Flame temperature rises by 0.66 K per kelvin of preheat (100 K per 150 K) and mean NO\u2093 by about 6.1 ppm per kelvin "
-  "(1957 \u2192 4699 ppm over 300 \u2192 750 K), the Arrhenius sensitivity of the Zeldovich and N\u2082O routes. "
-  "At 750 K the best staged NO\u2093 is still 4546 ppm at \u03c6\u2081 = 1.2: preheat shifts the whole curve upward, so "
-  "gas-turbine pressure ratio forces additional NO\u2093 control.")
-H("5.5.3 Combustor liner cooling", 3)
-hh = hl.pivot(index="Phi_1", columns="U_wall_W_m2K", values="NOx_ppm")
-t6 = pd.DataFrame({"\u03c6\u2081": hh.index.round(1)})
-for c in hh.columns:
-    t6[f"U = {int(c)}"] = hh[c].round(0).astype(int).values
-t6["\u0394 (U = 3000)"] = (hh[3000.0] - hh[0.0]).round(0).astype(int).values
-mt = hl.groupby("U_wall_W_m2K").agg(Tf=("T_final_K", "mean"), sl=("NH3_slip_ppm", "mean"))
-TABLE(t6, "Final NO\u2093 (ppm) versus wall heat-transfer coefficient (15 atm, 650 K).", widths=[1.8, 2.3, 2.3, 2.3, 2.3, 2.7])
-FIGURE(PLOTS / "wall_heat_loss_mitigation.png", "NO\u2093 reduction by liner heat loss.", 13)
-J(f"Heat loss at U = 3000 W m\u207b\u00b2 K\u207b\u00b9 lowers the mean final temperature by {mt.Tf.iloc[0] - mt.Tf.iloc[-1]:.0f} K "
-  f"({mt.Tf.iloc[0]:.0f} \u2192 {mt.Tf.iloc[-1]:.0f} K) and NO\u2093 by 286\u2013431 ppm depending on \u03c6\u2081 (mean 386 ppm). Mean NH\u2083 slip stays "
-  f"below {mt.sl.max():.2f} ppm, so within this model cooling does not threaten burnout. Real liner cooling also affects "
-  "flame stability and CO-like burnout in ways a PSR cannot represent.")
+t5.loc[len(t5)] = ["Mean NO<sub>x</sub> (ppm)"] + [int(round(v)) for v in mt.Nx]
+t5.loc[len(t5)] = ["Mean <i>T</i><sub>final</sub> (K)"] + [int(round(v)) for v in mt.Tf]
+tab_ph = TABLE(t5, "Final NO<sub>x</sub> (ppm) and mean final temperature versus compressor-discharge preheat at <i>P</i> = 10 atm.", widths=[3.6, 3.0, 3.0, 3.0, 3.0])
+fig_ph = FIGURE(PLOTS / "preheat_flame_temperature_and_nox.png", "Escalation of final flame temperature and NO<sub>x</sub> across inlet air preheat (300\u2013750 K) at 10 atm.", 13.5)
+J("Every 150 K of air preheat elevates mean final temperature linearly by ~100 K (2119 \u2192 2418 K, slope 0.663 K K<sup>\u22121</sup>), "
+  "driving mean NO<sub>x</sub> upward from 1957 to 4699 ppm (~6.1 ppm K<sup>\u22121</sup>) via thermal Zeldovich kinetics (Table {{TAB_PH}}, Figure {{FIG_PH}}). "
+  "Even so, staging near <i>\u03c6</i><sub>1</sub> = 1.2\u20131.3 retains the flat valley minimum across all preheat levels.")
 
-# ------------------------------------------------------------ Statistics
-H("5.6 Statistical significance of the results", 2)
-J("All tests are produced by double_stage/statistical_significance_analysis.py and stored in "
-  "results/statistical_significance_summary.csv (43 tests). Table 14 gives the main-study ANOVA, Table 15 the baseline-controlled "
-  "and architecture tests, Table 16 the Phase 4 tests.")
+H("5.6 Non-Adiabatic Liner Wall Heat Loss", 2)
+J("Under severe gas-turbine conditions (<i>P</i> = 15 atm, <i>T</i><sub>in</sub> = 650 K), convective liner cooling with <i>U</i> \u2208 [0, 3000] W m<sup>\u22122</sup> K<sup>\u22121</sup> "
+  "was evaluated across seven <i>\u03c6</i><sub>1</sub> levels (Table {{TAB_HL}} and Figure {{FIG_HL}}).")
+hh = hl.pivot(index="Phi_1", columns="U_wall_W_m2K", values="NOx_ppm")
+t6 = pd.DataFrame({"<i>\u03c6</i><sub>1</sub>": hh.index.round(1)})
+for c in hh.columns:
+    t6[f"<i>U</i> = {int(c)}"] = hh[c].round(0).astype(int).values
+t6["<i>\u0394</i> (<i>U</i> = 3000)"] = (hh[3000.0] - hh[0.0]).round(0).astype(int).values
+mt_hl = hl.groupby("U_wall_W_m2K").agg(Tf=("T_final_K", "mean"), sl=("NH3_slip_ppm", "mean"))
+tab_hl = TABLE(t6, "Final NO<sub>x</sub> (ppm) versus wall heat-transfer coefficient <i>U</i> (W m<sup>\u22122</sup> K<sup>\u22121</sup>) at <i>P</i> = 15 atm, <i>T</i><sub>in</sub> = 650 K.",
+               widths=[1.8, 2.5, 2.5, 2.5, 2.5, 3.0])
+fig_hl = FIGURE(PLOTS / "wall_heat_loss_mitigation.png", "Effect of combustor liner heat loss on (a) final NO<sub>x</sub> and (b) final temperature at 15 atm and 650 K.", 14.0)
+J(f"At <i>U</i> = 3000 W m<sup>\u22122</sup> K<sup>\u22121</sup>, liner cooling reduces mean final flame temperature by {mt_hl.Tf.iloc[0] - mt_hl.Tf.iloc[-1]:.1f} K "
+  f"({mt_hl.Tf.iloc[0]:.0f} \u2192 {mt_hl.Tf.iloc[-1]:.0f} K) and lowers NO<sub>x</sub> consistently by 286\u2013431 ppm across all <i>\u03c6</i><sub>1</sub> (mean 386.1 ppm, "
+  f"Table {{TAB_HL}} and Figure {{FIG_HL}}), while mean NH<sub>3</sub> slip remains negligible (< {mt_hl.sl.max():.3f} ppm). Thus passive "
+  f"liner cooling helps counteract preheat-driven thermal NO<sub>x</sub> without jeopardising burnout in the PSR limit.")
+
+H("5.7 Conclusion", 2)
+J("Phase 3 demonstrated that long rich residence times and progressive secondary air dilution can eliminate the right-branch "
+  "NO<sub>x</sub> surge (\u221288.3%), while Phase 4 showed that high pressure shifts the optimal primary ratio to <i>\u03c6</i><sub>1</sub> = 1.1\u20131.2, preheat "
+  "raises baseline NO<sub>x</sub>, and wall cooling restores ~386 ppm mitigation. Chapter 6 tests all results statistically and synthesises "
+  "an integrated design window.")
+PB()
+
+# ================================================================ CHAPTER 6
+H("Chapter 6: Statistical Significance Analysis and Integrated Design Synthesis", 1)
+H("6.1 Introduction", 2)
+J("Because combustion simulations across parametric grids can exhibit large visual swings driven by isolated extremes or "
+  "opposing interactions, Chapter 6 rigorously tests every claim from Chapters 4 and 5. Section 6.2 reports Type-II ANOVA "
+  "variance shares on the 586-point factorial study, Section 6.3 presents all hypothesis tests and bootstrap CIs across Phases 1\u20134, "
+  "Section 6.4 states statistical caveats, Section 6.5 integrates all phases into a unified operating window, and Section 6.6 concludes.")
+
+H("6.2 Factorial Sensitivity and Variance Decomposition", 2)
+J("Type-II ANOVA partial <i>F</i>-tests on the 586 converged main-study cases (Table {{TAB_S1}}, Figure {{FIG_STAT}}(b)) separate "
+  "main-factor contributions cleanly without confounding factor imbalance from the 19 non-converged points.")
 s1 = stat[(stat.Phase == "Main 605-case") & stat.Test.str.startswith("Type-II")].copy()
 s1["Factor"] = s1.Test.str.extract(r"\((.*)\)")
-s1["partial R\u00b2"] = s1.Effect.str.extract(r"=([0-9.]+)")[0]
-s1 = s1[["Quantity", "Factor", "Statistic", "partial R\u00b2", "p_value"]]
-s1.columns = ["Response", "Factor", "F", "partial R\u00b2", "p"]
-s1["p"] = s1.p.map(pfmt)
-TABLE(s1, "Type-II ANOVA of the 586 converged main-study cases (df = 10 or 4 numerator, 561 denominator).", fs=8.5, widths=[3.2, 2.6, 2.2, 2.4, 2.6])
-FIGURE(STAT_FIG1, "(a) Distribution and 95% bootstrap CI of the staging benefit; (b) partial R\u00b2 of each factor.", 15.5)
-J("For T_final, H\u2082 slip, \u0394T and NO\u2093 the factor that dominated the \u03b7\u00b2 analysis is also overwhelmingly significant "
-  "(p \u2264 10\u207b\u00b3\u00b3), and the \u03c4 effect on NO\u2093 (partial R\u00b2 = 0.029) is small but significant (p = 5 \u00d7 10\u207b\u2076). "
-  "The \u03c4 effect on \u0394NO\u2093 (p = 0.095) and, at the 1% level, on \u0394T (p = 0.035) is not significant, which supports the "
-  "mid-semester statement that residence time mainly matters for the absolute state, not the stage-wise change. "
-  "Within each fuel/\u03c6\u2081 cell, NO\u2093 decreases with \u03c4 (mean Spearman \u03c1 = \u22120.43, t-test p = 1.8 \u00d7 10\u207b\u2077).")
+s1["Partial <i>R</i><sup>2</sup>"] = s1.Effect.str.extract(r"=([0-9.]+)")[0]
+s1 = s1[["Quantity", "Factor", "Statistic", "Partial <i>R</i><sup>2</sup>", "p_value"]]
+s1.columns = ["Response", "Factor", "<i>F</i>", "Partial <i>R</i><sup>2</sup>", "<i>p</i>-value"]
+s1["<i>p</i>-value"] = s1["<i>p</i>-value"].map(pfmt)
+tab_s1 = TABLE(s1, "Type-II ANOVA of the 586 converged main-study cases (numerator df = 10 for <i>x</i><sub>NH3</sub>/<i>\u03c6</i><sub>1</sub>, 4 for <i>\u03c4</i>; denominator df = 561).",
+               fs=8.5, widths=[3.2, 2.8, 2.4, 2.6, 2.8])
+fig_stat = FIGURE(STAT_FIG1, "(a) Histogram and 95% bootstrap CI of the staging NO<sub>x</sub> reduction across 469 matched pairs; (b) Type-II ANOVA partial <i>R</i><sup>2</sup> variance shares across main-study responses.", 15.5)
+J("Fuel composition overwhelmingly drives <i>T</i><sub>final</sub> (partial <i>R</i><sup>2</sup> = 0.981, <i>p</i> < 10<sup>\u2212300</sup>) and H<sub>2</sub> slip (0.906, <i>p</i> < 10<sup>\u2212300</sup>), "
+  "whereas <i>\u03c6</i><sub>1</sub> explains 99.4% of Stage-2 <i>\u0394T</i> (<i>p</i> < 10<sup>\u2212300</sup>; Table {{TAB_S1}}). Residence time <i>\u03c4</i> significantly reduces "
+  "NO<sub>x</sub> within matched (<i>x</i><sub>NH3</sub>, <i>\u03c6</i><sub>1</sub>) cells (mean Spearman <i>\u03c1</i> = \u22120.433, 95% CI [\u22120.580, \u22120.277], <i>t</i> = \u22125.56, <i>p</i> = 1.79 \u00d7 10<sup>\u22127</sup>), "
+  "yet has no significant effect on Stage-2 <i>\u0394</i>NO<sub>x</sub> (<i>p</i> = 0.095) and only marginal impact on <i>\u0394T</i> (<i>p</i> = 0.035).")
+
+H("6.3 Significance Testing Across Phases 1\u20134", 2)
+J("Tables {{TAB_S2}} and {{TAB_S3}} collect all 47 statistical tests archived in <code>results/statistical_significance_summary.csv</code>.")
 s2 = stat[stat.Phase.isin(["Phase 1", "Phase 2", "Phase 3"])].copy()
 s2 = s2[["Phase", "Test", "Quantity", "N", "Statistic", "p_value", "Effect", "CI95"]]
-s2["p_value"] = s2.p_value.map(pfmt)
-s2.columns = ["Phase", "Test", "Quantity", "N", "Stat.", "p", "Effect size", "95% CI"]
-TABLE(s2, "Statistical tests for Phases 1\u20133.", fs=7, widths=[1.2, 3.6, 2, 0.9, 1.4, 1.6, 3.2, 2.2])
+s2["p_value"] = s2["p_value"].map(pfmt)
+s2.columns = ["Phase", "Test", "Quantity", "<i>N</i>", "Stat.", "<i>p</i>-value", "Effect Size", "95% CI"]
+tab_s2 = TABLE(s2, "Hypothesis tests, effect sizes, and 95% bootstrap confidence intervals for Phases 1\u20133.",
+               fs=7.2, widths=[1.2, 3.8, 1.9, 0.8, 1.3, 1.6, 3.2, 2.2])
+
 s3 = stat[stat.Phase == "Phase 4"].copy()
 s3 = s3[["Test", "Quantity", "N", "Statistic", "p_value", "Effect", "CI95"]]
-s3["p_value"] = s3.p_value.map(pfmt)
-s3.columns = ["Test", "Quantity", "N", "Stat.", "p", "Effect size", "95% CI"]
-TABLE(s3, "Statistical tests for Phase 4.", fs=7.5, widths=[4.2, 1.8, 0.8, 1.4, 1.5, 3.6, 2.2])
-J("Interpretation by phase:")
-B([f"Phase 1: staging reduces NO\u2093 by {cmp_.NOx_reduction_pct.mean():.1f}% on average (95% bootstrap CI {lo:.1f}\u2013{hi:.1f}%); the paired "
-   "difference is 4167 ppm (CI 3921\u20134409 ppm, Cohen\u2019s d_z = 1.56, a very large effect); the Wilcoxon p = 5 \u00d7 10\u207b\u2077\u2076 and the "
-   "sign test (439 of 469 wins) p = 3 \u00d7 10\u207b\u2079\u2074. The benefit is significant and not driven by a few outliers. The exceptions "
-   "(30 cases) are concentrated in pure H\u2082 and extreme right-branch conditions.",
-   "Phase 2: the monotonic Stage-1 NO\u2093 decline and the monotonic Stage-2 rise are both perfectly rank-correlated with \u03c6\u2081 "
-   "(\u03c1 = \u22121 and +1, n = 11, exact permutation p = 2/11! = 5 \u00d7 10\u207b\u2078), and the curvature of the "
-   "total is significantly positive (quadratic coefficient t = 5.19, p = 8 \u00d7 10\u207b\u2074), i.e. the U-shape is statistically real.",
-   "Phase 3: both finite-mixing levels reduce NO\u2093 significantly versus instantaneous mixing (N = 3: mean 1145 ppm, p = 0.003; "
-   "N = 5: 1287 ppm, p = 0.002; Wilcoxon p = 0.001 for all pairs), and N = 5 is significantly better than N = 3 "
-   "(143 ppm, d_z = 2.95, p = 2 \u00d7 10\u207b\u2076; Friedman p = 1.7 \u00d7 10\u207b\u2075). For decoupled residence times \u03c6\u2081 explains 94.7% "
-   "of NO\u2093 variance, \u03c4\u2081 2.0% (p = 9 \u00d7 10\u207b\u00b9\u2075) and \u03c4\u2082 1.0% (p = 1 \u00d7 10\u207b\u2078): both residence times matter "
-   "significantly but are secondary to \u03c6\u2081. NH\u2083 slip depends on \u03c4\u2082 (partial R\u00b2 = 0.14, p = 3 \u00d7 10\u207b\u00b9\u2078) but not "
-   "on \u03c4\u2081 (p = 0.30).",
-   "Phase 4: preheat and liner cooling are monotone at every \u03c6\u2081 (\u03c1 = +1 and \u22121; exact sign test p = 0.0156 with 7 levels, the minimum attainable); the adiabatic vs U = 3000 paired "
-   "difference is 386 ppm (CI 344\u2013422 ppm, p = 2 \u00d7 10\u207b\u2076) and T_final is linear in T_in (slope 0.663 K/K, R\u00b2 = 1.000). "
-   "In contrast the pooled pressure effect is not significant (paired 1 vs 30 atm: mean 440 ppm, CI \u221291 to 1069 ppm, p = 0.19; "
-   "mean per-\u03c6\u2081 \u03c1 = \u22120.10, p = 0.69). This is not evidence that pressure is unimportant: it reflects the sign change "
-   "of the effect between branches (strongly negative at \u03c6\u2081 = 1.0 and 2.0, positive in the valley), so the pooled test "
-   "averages opposing effects. Pressure must therefore be treated as interacting with \u03c6\u2081, not as a main effect."])
-J("Caveats: (i) the model is deterministic, so p-values describe consistency across the sampled operating "
-  "conditions and not experimental repeatability; (ii) with n = 11 per curve, only large effects are detectable; "
-  "(iii) no multiple-testing correction was applied to the 43 tests; under a Bonferroni threshold of 0.05/43 \u2248 1.2 \u00d7 10\u207b\u00b3 the Phase 3 parametric paired t-tests (p = 0.003, 0.002) would not survive, whereas the Wilcoxon tests (p = 0.00098) and the Friedman test (p = 1.7 \u00d7 10\u207b\u2075) do, so the finite-mixing benefit is robust but its pairwise p-values are marginal because only 11 \u03c6\u2081 levels are available; (iv) the single mechanism was not varied, so "
-  "mechanism uncertainty is not part of any interval.")
+s3["p_value"] = s3["p_value"].map(pfmt)
+s3.columns = ["Test", "Quantity", "<i>N</i>", "Stat.", "<i>p</i>-value", "Effect Size", "95% CI"]
+tab_s3 = TABLE(s3, "Statistical significance and interaction tests for Phase 4 gas-turbine regimes.",
+               fs=7.5, widths=[4.5, 1.8, 0.8, 1.3, 1.5, 3.8, 2.3])
+J("Key inferential conclusions from Tables {{TAB_S2}} and {{TAB_S3}} and Figure {{FIG_STAT}}(a) are:")
+B(["<b>Phase 1 (Staging Benefit):</b> The 4167.0 ppm paired mean reduction (95% CI [3920.7, 4409.0] ppm) has a very large "
+   "effect size (<i>d</i><sub>z</sub> = 1.56, paired <i>t</i> = 33.79, <i>p</i> = 1.26 \u00d7 10<sup>\u2212127</sup>). Non-parametric Wilcoxon (<i>p</i> = 5.28 \u00d7 10<sup>\u221276</sup>) "
+   "and binomial sign tests (439/469 wins, <i>p</i> = 2.81 \u00d7 10<sup>\u221294</sup>) confirm the benefit is grid-wide, not outlier-driven.",
+   "<b>Phase 2 (U-Curve Origin):</b> Both the monotonic Stage-1 NO<sub>x</sub> decline (<i>\u03c1</i> = \u22121.0) and monotonic Stage-2 NO<sub>x</sub> and NH<sub>2</sub> "
+   "rises (<i>\u03c1</i> = +1.0) reach the exact permutation floor (<i>p</i> = 2/11! = 5.01 \u00d7 10<sup>\u22128</sup>), and total NO<sub>x</sub> possesses positive "
+   "quadratic curvature (<i>t</i> = 5.19, <i>p</i> = 8.31 \u00d7 10<sup>\u22124</sup>), proving statistical reality of the U-shape.",
+   "<b>Phase 3 (Architecture & Mixing):</b> On decoupled residence times, <i>\u03c6</i><sub>1</sub> dominates NO<sub>x</sub> variance (partial <i>R</i><sup>2</sup> = 0.947), "
+   "while <i>\u03c4</i><sub>1</sub> (0.020, <i>p</i> = 9.01 \u00d7 10<sup>\u221215</sup>) and <i>\u03c4</i><sub>2</sub> (0.010, <i>p</i> = 1.26 \u00d7 10<sup>\u22128</sup>) exert genuine secondary control; "
+   "NH<sub>3</sub> slip depends on <i>\u03c4</i><sub>2</sub> (0.139, <i>p</i> = 3.32 \u00d7 10<sup>\u221218</sup>) rather than <i>\u03c4</i><sub>1</sub> (<i>p</i> = 0.301). Progressive mixing "
+   "produces a significant difference across <i>N</i> = 1, 3, 5 (Friedman <i>p</i> = 1.67 \u00d7 10<sup>\u22125</sup>), with <i>N</i> = 5 outperforming <i>N</i> = 3 "
+   "at every <i>\u03c6</i><sub>1</sub> (mean 142.5 ppm, <i>d</i><sub>z</sub> = 2.95, <i>p</i> = 1.94 \u00d7 10<sup>\u22126</sup>).",
+   "<b>Phase 4 (Gas-Turbine Regimes):</b> Preheat (+6.1 ppm K<sup>\u22121</sup>) and liner cooling (\u2212386.1 ppm mean cut, 95% CI [343.8, 421.9] ppm, "
+   "<i>p</i> = 2.04 \u00d7 10<sup>\u22126</sup>) act monotonically at all 7 <i>\u03c6</i><sub>1</sub> levels (exact sign test <i>p</i> = 0.0156). Crucially, pooled pressure "
+   "tests are non-significant (paired 1 vs. 30 atm <i>p</i> = 0.188; pooled <i>\u03c1</i> = \u22120.10, <i>p</i> = 0.690) solely because pressure reverses "
+   "sign between branches: it significantly <i>increases</i> NO<sub>x</sub> in the valley (<i>\u03c1</i> = +0.666, <i>p</i> = 0.0068), <i>decreases</i> it on the right "
+   "branch (<i>\u03c1</i> = \u22120.766, <i>p</i> = 8.12 \u00d7 10<sup>\u22125</sup>), collapses curve SD by 73.7% (Levene <i>p</i> = 0.0125), and monotonically drives "
+   "NO<sub>2</sub>/NO<sub>x</sub> upward (<i>\u03c1</i> = 0.988, <i>p</i> = 3.14 \u00d7 10<sup>\u221244</sup>). Pressure must therefore be modelled via its <i>P</i> \u00d7 <i>\u03c6</i><sub>1</sub> interaction."])
 
-# ------------------------------------------------------------ integrated discussion
-H("5.7 Integrated discussion", 2)
-J("The four phases form one argument. Staging works (Phase 1) because the rich zone converts fuel nitrogen towards N\u2082 "
-  "(Phase 2 valley chemistry); it fails when the rich zone is too rich because the unburnt NH\u2093 is converted to NO by the "
-  "secondary air (Phase 2 right branch). The failure mode is controllable by architecture: a longer rich residence time "
-  "reduces carry-over and progressive air injection avoids the abrupt oxidation (Phase 3), recovering 88% of the "
-  "right-branch penalty. Real gas-turbine conditions (Phase 4) change the optimum rather than remove the benefit: pressure "
-  "moves the best \u03c6\u2081 towards 1.1, preheat raises NO\u2093 across the board, and cooling gives a modest, statistically clear "
-  "reduction. Taken together, a design window of \u03c6\u2081 \u2248 1.1\u20131.4 with progressive secondary mixing, long rich residence "
-  "time and liner cooling is where the model predicts the lowest NO\u2093 at acceptable burnout.")
+H("6.4 Statistical Caveats and Multiple-Testing Considerations", 2)
+J("Four limitations govern interpretation of Tables {{TAB_S1}}\u2013{{TAB_S3}}: (i) deterministic grid outputs carry no physical measurement "
+  "noise, so <i>p</i>-values measure consistency across operating conditions and large factorial <i>n</i> inflates significance; "
+  "(ii) curve comparisons have <i>n</i> = 7\u201311, restricting power to large effects; (iii) under a conservative Bonferroni threshold "
+  "<i>\u03b1</i> = 0.05/47 \u2248 1.06 \u00d7 10<sup>\u22123</sup>, the Phase 3 parametric paired <i>t</i>-tests comparing <i>N</i> = 1 vs. 3 (<i>p</i> = 0.0028) and <i>N</i> = 1 vs. 5 "
+  "(<i>p</i> = 0.0018) would not survive, whereas the non-parametric Wilcoxon (<i>p</i> = 9.77 \u00d7 10<sup>\u22124</sup>) and Friedman (<i>p</i> = 1.67 \u00d7 10<sup>\u22125</sup>) "
+  "tests do survive; and (iv) mechanism uncertainty is unquantified.")
+
+H("6.5 Integrated Combustor Design Window", 2)
+J("Synthesising Phases 1\u20134 yields a coherent design strategy for low-NO<sub>x</sub> NH<sub>3</sub>/H<sub>2</sub> staged combustors: operate the primary "
+  "stage inside <i>\u03c6</i><sub>1</sub> \u2248 1.1\u20131.4 (shifting toward 1.1 at 10\u201330 atm), provide generous rich-zone residence time (<i>\u03c4</i><sub>1</sub> \u2248 40\u201350 ms) "
+  "so amine radicals relax toward N<sub>2</sub> rather than carrying over, stage secondary air injection progressively (<i>N</i> \u2265 3\u20135) to "
+  "prevent HNO + OH oxidation surges, and employ combustor liner cooling to offset compressor-discharge preheat penalties.")
+
+H("6.6 Conclusion", 2)
+J("Statistical testing confirms the robustness of staging, kinetic U-curve decomposition, progressive secondary dilution, "
+  "and thermal mitigation while exposing the sign-reversing interaction of pressure across equivalence ratios. Chapter 7 "
+  "summarises overall project contributions and future research priorities.")
 PB()
 
-# ================================================================ CH 6
-H("Chapter 6: Conclusions and Future Work", 1)
-H("6.1 Principal findings", 2)
-B([f"Phase 1: staging reduces NO\u2093 by {cmp_.NOx_reduction_pct.mean():.1f}% on average over 469 matched cases (95% CI {lo:.1f}\u2013{hi:.1f}%, max 90.4%); it "
-   "wins in 93.6% of cases and loses only for pure H\u2082 and extreme right-branch NH\u2083-rich conditions.",
-   "Phase 2: the NO\u2093 U-curve is the sum of a monotonic decline of Stage-1 NO\u2093 and a monotonic rise of Stage-2 NO\u2093 generation. The valley "
-   "is controlled by NH\u2082/NH + NO de-NO\u2093 steps; the right branch by carry-over of NH\u2082 (5 \u2192 86 ppm) and NH\u2083 oxidised through "
-   "HNO + OH and NH + O\u2082.",
-   "Phase 3: longer rich residence time reduces carry-over and NO\u2093; progressive five-stage dilution reduces \u03c6\u2081 = 2.0 NO\u2093 by 88.3% "
-   "(3693 \u2192 433 ppm).",
-   "Phase 4: pressure moves the optimum \u03c6\u2081 from 1.3 to 1.1 and increases NO\u2082/NO\u2093; preheat raises NO\u2093 about 6.1 ppm/K; liner cooling "
-   "lowers NO\u2093 by about 386 ppm.",
-   "Statistics: all of the above except the pooled pressure effect are significant, with large effect sizes; the pooled pressure effect "
-   "is not significant because of branch-dependent sign changes."], numbered=True)
-H("6.2 Contribution", 2)
-J("The work converts a descriptive parametric map into a baseline-controlled, mechanistically explained and statistically "
-  "tested design study, and provides code and data that reproduce every figure and table (see Appendix A).")
-H("6.3 Limitations", 2)
-B(["Zero-dimensional PSR network: spatial mixing structure, flame stabilisation and turbulence\u2013chemistry interaction are absent.",
-   "One mechanism (Tamaoki 2024) and no experimental validation of the new phases.",
-   "Fixed fuel blend (x_NH3 = 0.5) in Phases 3\u20134; the fuel dependence of those results is not established.",
-   "Pressure mechanism explanations are inferred and not confirmed by a pressure-resolved ROP analysis.",
-   "Wall heat loss is a simple UA(T \u2212 T_wall) model, with no radiation."])
-H("6.4 Future work", 2)
-B(["Compare at least two further NH\u2083 mechanisms to estimate kinetic uncertainty in NO\u2093, N\u2082O and slip.",
-   "Validate the staged and finite-mixing predictions against jet-stirred reactor, flow reactor or gas-turbine-combustor data.",
-   "Repeat Phases 3\u20134 for other blends and run pressure-resolved ROP analysis.",
-   "Add N\u2082O reporting and a global-warming-potential-weighted emission metric.",
-   "Replace the equal-split dilution by a mixing-time-resolved model (PaSR/PFR with tunable mixing time) and move to CFD-informed reactor networks.",
-   "Use the database for surrogate models with cross-validation and out-of-distribution checks.",
-   "Run the 19 non-converged main-study cases with tighter tolerances and continuation."], numbered=True)
+# ================================================================ CHAPTER 7
+H("Chapter 7: Conclusions", 1)
+H("7.1 Summary", 2)
+B(["<b>Phase 1 (Baseline Benefit):</b> Across 469 matched cases, two-stage RQL combustion reduces NO<sub>x</sub> by an average of 55.1% "
+   "(95% CI [52.2, 57.9]%, up to 90.4%, sign test <i>p</i> = 2.81 \u00d7 10<sup>\u221294</sup>), with gains of 60.1% across all NH<sub>3</sub>-containing blends.",
+   "<b>Phase 2 (Kinetic Mechanism):</b> The NO<sub>x</sub> U-curve is the superposition of falling Stage-1 thermal/prompt NO (4400 \u2192 29 ppm) "
+   "and rising Stage-2 oxidation (\u2212191 \u2192 +3586 ppm) of unburnt NH<sub>2</sub> (5.2 \u2192 85.7 ppm) and NH<sub>3</sub> (21.9 \u2192 8558 ppm) via "
+   "HNO + OH \u21c4 H<sub>2</sub>O + NO (24\u00d7 surge at <i>\u03c6</i><sub>1</sub> = 2.0), framed around a thermal de-NO<sub>x</sub> valley at <i>\u03c6</i><sub>1</sub> \u2248 1.3.",
+   "<b>Phase 3 (Reactor Architecture):</b> Longer rich residence times (<i>\u03c4</i><sub>1</sub> = 50 ms) lower NH<sub>2</sub> carry-over and NO<sub>x</sub>; progressive "
+   "5-stage secondary air dilution slashes right-branch NO<sub>x</sub> at <i>\u03c6</i><sub>1</sub> = 2.0 by 88.3% (3693 \u2192 433 ppm, Friedman <i>p</i> = 1.67 \u00d7 10<sup>\u22125</sup>).",
+   "<b>Phase 4 (Gas-Turbine Regimes):</b> Pressure shifts the minimum-NO<sub>x</sub> valley from <i>\u03c6</i><sub>1</sub> = 1.3 to 1.1, collapses curve spread "
+   "by 73.7% (Levene <i>p</i> = 0.0125), and raises NO<sub>2</sub>/NO<sub>x</sub> 6.6-fold; preheat escalates NO<sub>x</sub> by 6.1 ppm K<sup>\u22121</sup>; liner cooling "
+   "(<i>U</i> = 3000 W m<sup>\u22122</sup> K<sup>\u22121</sup>) recovers a 386.1 ppm NO<sub>x</sub> reduction (<i>p</i> = 2.04 \u00d7 10<sup>\u22126</sup>) with near-zero NH<sub>3</sub> slip (< 0.07 ppm)."], numbered=True)
+
+H("7.2 Future Work", 2)
+B(["Benchmark predictions across multiple published NH<sub>3</sub>/H<sub>2</sub> mechanisms (e.g., Glarborg, Okafor, Stagni) to quantify kinetic uncertainty.",
+   "Validate staged, decoupled, and progressive-dilution predictions against experimental jet-stirred reactor, flow-reactor, and gas-turbine datasets.",
+   "Extend Phases 3\u20134 across the full 0\u2013100% NH<sub>3</sub> blend spectrum and perform pressure-resolved ROP analysis at 10\u201330 atm.",
+   "Track N<sub>2</sub>O explicitly alongside NO<sub>x</sub> using greenhouse-warming-potential-weighted emission metrics.",
+   "Replace discrete equal-split dilution by mixing-time-resolved partially stirred reactor (PaSR) or CFD-informed chemical reactor networks."], numbered=True)
 PB()
 
-# ================================================================ REFERENCES
+# ================================================================ REFERENCES (Strictly ordered [1]..[10], IEEE style)
 H("References", 1)
 refs = [
-    "K. Tamaoki, Y. Murakami, K. Kanayama, T. Tezuka, M. Izumi, and H. Nakamura, \u201cRoles of NH\u2082 reactions in ammonia oxidation at intermediate temperatures: Experiments and chemical kinetic modeling,\u201d Combustion and Flame, vol. 259, Art. no. 113177, 2024, doi: 10.1016/j.combustflame.2023.113177.",
-    "D. G. Goodwin, H. K. Moffat, R. L. Speth, I. Schoegl, and B. W. Weber, \u201cCantera: An object-oriented software toolkit for chemical kinetics, thermodynamics, and transport processes,\u201d 2021, doi: 10.5281/zenodo.4527812.",
-    "H. Kobayashi, A. Hayakawa, K. D. K. A. Somarathne, and E. C. Okafor, \u201cScience and technology of ammonia combustion,\u201d Proceedings of the Combustion Institute, vol. 37, pp. 109\u2013133, 2019.",
-    "P. Glarborg, J. A. Miller, B. Ruscic, and S. J. Klippenstein, \u201cModeling nitrogen chemistry in combustion,\u201d Progress in Energy and Combustion Science, vol. 67, pp. 31\u201368, 2018.",
-    "J. A. Miller and C. T. Bowman, \u201cMechanism and modeling of nitrogen chemistry in combustion,\u201d Progress in Energy and Combustion Science, vol. 15, pp. 287\u2013338, 1989.",
-    "P. Glarborg, K. Dam-Johansen, J. A. Miller, R. J. Kee, and M. E. Coltrin, \u201cModeling the thermal DeNOx process in flow reactors. Surface effects and nitrous oxide formation,\u201d International Journal of Chemical Kinetics, vol. 26, pp. 421\u2013436, 1994.",
-    "S. Song, R. K. Hanson, C. T. Bowman, and D. M. Golden, \u201cShock tube determination of the overall rate of NH\u2082 + NO \u2192 products in the thermal DeNOx process,\u201d International Journal of Chemical Kinetics, vol. 33, pp. 715\u2013721, 2001.",
-    "B. Efron, \u201cBootstrap methods: Another look at the jackknife,\u201d The Annals of Statistics, vol. 7, no. 1, pp. 1\u201326, 1979.",
-    "F. Wilcoxon, \u201cIndividual comparisons by ranking methods,\u201d Biometrics Bulletin, vol. 1, no. 6, pp. 80\u201383, 1945.",
-    "H. Nakamura, S. Hasegawa, and T. Tezuka, \u201cKinetic modeling of ammonia/air weak flames in a micro flow reactor with a controlled temperature profile,\u201d Combustion and Flame, vol. 185, pp. 16\u201327, 2017.",
+    "H. Kobayashi, A. Hayakawa, K. D. K. A. Somarathne, and E. C. Okafor, \u201cScience and technology of ammonia combustion,\u201d <i>Proceedings of the Combustion Institute</i>, vol. 37, no. 1, pp. 109\u2013133, 2019.",
+    "P. Glarborg, J. A. Miller, B. Ruscic, and S. J. Klippenstein, \u201cModeling nitrogen chemistry in combustion,\u201d <i>Progress in Energy and Combustion Science</i>, vol. 67, pp. 31\u201368, 2018.",
+    "J. A. Miller and C. T. Bowman, \u201cMechanism and modeling of nitrogen chemistry in combustion,\u201d <i>Progress in Energy and Combustion Science</i>, vol. 15, no. 4, pp. 287\u2013338, 1989.",
+    "P. Glarborg, K. Dam-Johansen, J. A. Miller, R. J. Kee, and M. E. Coltrin, \u201cModeling the thermal DeNOx process in flow reactors. Surface effects and nitrous oxide formation,\u201d <i>International Journal of Chemical Kinetics</i>, vol. 26, no. 4, pp. 421\u2013436, 1994.",
+    "S. Song, R. K. Hanson, C. T. Bowman, and D. M. Golden, \u201cShock tube determination of the overall rate of NH<sub>2</sub> + NO \u2192 products in the thermal DeNOx process,\u201d <i>International Journal of Chemical Kinetics</i>, vol. 33, no. 11, pp. 715\u2013721, 2001.",
+    "D. G. Goodwin, H. K. Moffat, R. L. Speth, I. Schoegl, and B. W. Weber, \u201cCantera: An object-oriented software toolkit for chemical kinetics, thermodynamics, and transport processes,\u201d Zenodo, 2021, doi: 10.5281/zenodo.4527812.",
+    "K. Tamaoki, Y. Murakami, K. Kanayama, T. Tezuka, M. Izumi, and H. Nakamura, \u201cRoles of NH<sub>2</sub> reactions in ammonia oxidation at intermediate temperatures: Experiments and chemical kinetic modeling,\u201d <i>Combustion and Flame</i>, vol. 259, Art. no. 113177, 2024, doi: 10.1016/j.combustflame.2023.113177.",
+    "H. Nakamura, S. Hasegawa, and T. Tezuka, \u201cKinetic modeling of ammonia/air weak flames in a micro flow reactor with a controlled temperature profile,\u201d <i>Combustion and Flame</i>, vol. 185, pp. 16\u201327, 2017.",
+    "F. Wilcoxon, \u201cIndividual comparisons by ranking methods,\u201d <i>Biometrics Bulletin</i>, vol. 1, no. 6, pp. 80\u201383, 1945.",
+    "B. Efron, \u201cBootstrap methods: Another look at the jackknife,\u201d <i>The Annals of Statistics</i>, vol. 7, no. 1, pp. 1\u201326, 1979.",
 ]
-for i, r in enumerate(refs, 1):
-    p = doc.add_paragraph(f"[{i}] {r}")
-    p.paragraph_format.left_indent = Cm(1)
-    p.paragraph_format.first_line_indent = Cm(-1)
+for i, ref in enumerate(refs, 1):
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p.paragraph_format.left_indent = Cm(1.0)
+    p.paragraph_format.first_line_indent = Cm(-1.0)
+    _add_runs(p, f"[{i}] {ref}", size=11)
 PB()
 
 # ================================================================ APPENDIX
-H("Appendix A: Reproducing the Results", 1)
-J("From the repository root with the Cantera environment active:")
-for cmd in ["python -m single_stage.single_stage_baseline", "python -m double_stage.rate_of_production_analysis",
-            "python -m double_stage.decoupled_mixing_analysis", "python -m double_stage.gas_turbine_regimes_analysis",
-            "python -m double_stage.statistical_significance_analysis", "python docs/reports/build_end_semester_report.py"]:
+H("Appendix A: Repository Architecture and Reproducibility", 1)
+J("All results in this report can be reproduced sequentially from the repository root with the Cantera environment active:")
+for cmd in [
+    "python -m single_stage.single_stage_baseline",
+    "python -m double_stage.rate_of_production_analysis",
+    "python -m double_stage.decoupled_mixing_analysis",
+    "python -m double_stage.gas_turbine_regimes_analysis",
+    "python -m double_stage.statistical_significance_analysis",
+    "python docs/reports/build_end_semester_report.py",
+]:
     p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.left_indent = Cm(0.8)
+    p.paragraph_format.space_after = Pt(2)
     r = p.add_run(cmd)
     r.font.name = "Courier New"
     r.font.size = Pt(10)
-J("The statistics script and the report builder read only the committed CSV files in results/, so they run in seconds "
-  "and do not require re-running Cantera.")
+J("The statistical significance script and report builder operate directly on the committed CSV datasets under "
+  "<code>results/</code> and regenerate both <code>results/statistical_significance_summary.csv</code> and this DOCX report in seconds.")
+
+# ================================================================ RESOLVE PLACEHOLDERS & FRONT MATTER
+repl = {
+    "{FIG_AIR}": str(fig_air), "{FIG_NET}": str(fig_net),
+    "{FIG_MTEMP}": str(fig_mtemp), "{FIG_MU}": str(fig_mu), "{FIG_MNMAP}": str(fig_mnmap),
+    "{FIG_B1}": str(fig_b1), "{FIG_B2}": str(fig_b2), "{FIG_B3}": str(fig_b3),
+    "{FIG_ROP1}": str(fig_rop1), "{FIG_ROP2}": str(fig_rop2),
+    "{FIG_RP1}": str(fig_rp1), "{FIG_RP2}": str(fig_rp2), "{FIG_RP3}": str(fig_rp3), "{FIG_RP4}": str(fig_rp4),
+    "{FIG_D1}": str(fig_d1), "{FIG_D2}": str(fig_d2),
+    "{FIG_fm1}": str(fig_fm1), "{FIG_fm2}": str(fig_fm2),
+    "{FIG_P1}": str(fig_p1), "{FIG_P2}": str(fig_p2),
+    "{FIG_PH}": str(fig_ph), "{FIG_HL}": str(fig_hl), "{FIG_STAT}": str(fig_stat),
+    "{TAB_MOD}": str(tab_mod), "{TAB_CAMP}": str(tab_camp), "{TAB_ETA}": str(tab_eta),
+    "{TAB_B1}": str(tab_b1), "{TAB_ROP}": str(tab_rop), "{TAB_RXN}": str(tab_rxn),
+    "{TAB_D1}": str(tab_d1), "{TAB_D2}": str(tab_d2), "{TAB_FM}": str(tab_fm),
+    "{TAB_PR}": str(tab_pr), "{TAB_PH}": str(tab_ph), "{TAB_HL}": str(tab_hl),
+    "{TAB_S1}": str(tab_s1), "{TAB_S2}": str(tab_s2), "{TAB_S3}": str(tab_s3),
+}
+for p in doc.paragraphs:
+    for r in p.runs:
+        for k, v in repl.items():
+            kk = "{" + k + "}"
+            if kk in r.text:
+                r.text = r.text.replace(kk, v)
+            if k in r.text:
+                r.text = r.text.replace(k, v)
+
+toc_field(toc_anchor)
+for lvl, title in TOC_ENTRIES:
+    insert_paragraph_before(toc_anchor, title, left_cm=0.0 if lvl == 1 else 0.7, bold=(lvl == 1), size=11 if lvl == 1 else 10.5)
+toc_anchor._element.getparent().remove(toc_anchor._element)
+
+for num, cap in FIG_ENTRIES:
+    insert_paragraph_before(lof_anchor, f"<b>Figure {num}.</b> {cap}", left_cm=0.0, size=10.5)
+lof_anchor._element.getparent().remove(lof_anchor._element)
+
+for num, cap in TAB_ENTRIES:
+    insert_paragraph_before(lot_anchor, f"<b>Table {num}.</b> {cap}", left_cm=0.0, size=10.5)
+lot_anchor._element.getparent().remove(lot_anchor._element)
 
 page_number_footer()
 doc.save(OUT)
-print("saved", OUT, "figures:", FIG[0], "tables:", TAB[0])
+print(f"Saved {OUT}: {len(FIG_ENTRIES)} figures, {len(TAB_ENTRIES)} tables, {EQ_COUNT[0]} equations")
