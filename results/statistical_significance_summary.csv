@@ -1,0 +1,44 @@
+Phase,Test,Quantity,N,Statistic,p_value,Effect,CI95
+Main 605-case,Type-II ANOVA F-test (NH3_frac),T_final_K,586,6237.111,0.0,"partial R2 contribution=0.9814 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),T_final_K,586,57.795,9.759606007705755e-80,"partial R2 contribution=0.0091 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),T_final_K,586,22.841,1.6792427607378703e-17,"partial R2 contribution=0.0014 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (NH3_frac),NOx_ppm,586,21.159,1.6118644329893606e-33,"partial R2 contribution=0.1966 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),NOx_ppm,586,28.426,4.0658827634662634e-44,"partial R2 contribution=0.2641 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),NOx_ppm,586,7.673,5.047311506522382e-06,"partial R2 contribution=0.0285 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (NH3_frac),H2_slip,586,1469.23,0.0,"partial R2 contribution=0.9057 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),H2_slip,586,41.46,3.482384159687583e-61,"partial R2 contribution=0.0256 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),H2_slip,586,132.55,1.2288101515732043e-79,"partial R2 contribution=0.0327 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (NH3_frac),Delta_T_K,586,49.052,3.742284185207243e-70,"partial R2 contribution=0.0031 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),Delta_T_K,586,15698.023,0.0,"partial R2 contribution=0.9935 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),Delta_T_K,586,2.603,0.035159529013712,"partial R2 contribution=0.0001 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (NH3_frac),Delta_NOx_ppm,586,106.497,1.153462546902168e-122,"partial R2 contribution=0.3393 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),Delta_NOx_ppm,586,153.009,4.0383455994636655e-153,"partial R2 contribution=0.4875 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),Delta_NOx_ppm,586,1.987,0.09508478658060476,"partial R2 contribution=0.0025 (df=4,561)",
+Main 605-case,"One-sample t on within-cell Spearman rho(tau, NOx)",NOx_ppm,117,-5.555,1.794325767151774e-07,mean rho=-0.433,[-0.58  -0.277]
+Phase 1,Paired t-test (single - staged),NOx_ppm,469,33.789,1.258875249920337e-127,mean diff=4167.0 ppm; Cohen dz=1.560,[3920.7 4409. ]
+Phase 1,Wilcoxon signed-rank (single vs staged),NOx_ppm,469,927.0,5.280039449735705e-76,median diff=4389.4 ppm,
+Phase 1,Bootstrap CI of mean % reduction,NOx_reduction_pct,469,,,mean=55.09%,[52.22 57.91]
+Phase 1,Two-sided binomial sign test (staging wins),NOx_reduction_pct>0,469,439,2.808936613939926e-94,win fraction=0.936,
+Phase 1,"Wilcoxon signed-rank, blends x_NH3>=0.1",NOx_ppm,435,25.0,6.208293934994014e-73,mean reduction=60.10%,[57.64 62.52]
+Phase 2,Spearman trend vs phi1 (exact p for |rho|=1),Stage-1 NOx,11,-1.0,5.010421677088344e-08,perfectly monotonic,
+Phase 2,Spearman trend vs phi1 (exact p for |rho|=1),Stage-2 NOx change,11,1.0,5.010421677088344e-08,perfectly monotonic,
+Phase 2,Spearman trend vs phi1 (exact p for |rho|=1),NH2 carryover,11,1.0,5.010421677088344e-08,perfectly monotonic,
+Phase 2,Quadratic coefficient t-test (U-shape),NOx_final vs phi1 (N=1),11,5.191,0.0008313068572561087,curvature=10806 ppm/phi^2,
+Phase 3,Paired t / Wilcoxon: N=1 vs N=3,NOx_final_ppm,11,3.927,0.0028324017207493808,mean diff=1144.6 ppm; Wilcoxon p=0.0009766; dz=1.18,[ 633.6 1725.8]
+Phase 3,Paired t / Wilcoxon: N=1 vs N=5,NOx_final_ppm,11,4.216,0.0017824882655283977,mean diff=1287.1 ppm; Wilcoxon p=0.0009766; dz=1.27,[ 743.2 1898.7]
+Phase 3,Paired t / Wilcoxon: N=3 vs N=5,NOx_final_ppm,11,9.783,1.9428213723974586e-06,mean diff=142.5 ppm; Wilcoxon p=0.0009766; dz=2.95,[115.7 169.4]
+Phase 3,"Friedman test across N=1,3,5",NOx_final_ppm,11,22.0,1.6701700790245663e-05,,
+Phase 3,Type-II ANOVA F-test (Tau_1_ms),NOx_final_ppm,125,24.921,9.01231929814725e-15,"partial R2 contribution=0.0200 (df=4,112)",
+Phase 3,Type-II ANOVA F-test (Tau_2_ms),NOx_final_ppm,125,12.818,1.2649039680351399e-08,"partial R2 contribution=0.0103 (df=4,112)",
+Phase 3,Type-II ANOVA F-test (Phi_1),NOx_final_ppm,125,1179.945,1.5562463653734296e-90,"partial R2 contribution=0.9472 (df=4,112)",
+Phase 3,Type-II ANOVA F-test (Tau_1_ms),NH3_slip_ppm,125,1.232,0.30138716610967414,"partial R2 contribution=0.0052 (df=4,112)",
+Phase 3,Type-II ANOVA F-test (Tau_2_ms),NH3_slip_ppm,125,33.092,3.324998186483689e-18,"partial R2 contribution=0.1389 (df=4,112)",
+Phase 3,Type-II ANOVA F-test (Phi_1),NH3_slip_ppm,125,175.834,2.595787765331329e-47,"partial R2 contribution=0.7383 (df=4,112)",
+Phase 3,Spearman rho (Tau_1_ms),NOx_final_ppm,125,-0.235,0.008427761601030752,,
+Phase 3,Spearman rho (Tau_2_ms),NOx_final_ppm,125,-0.049,0.5904268165603794,,
+Phase 4,One-sample t on per-phi1 Spearman rho (pressure),NOx_ppm,11,-0.41,0.6903685143965842,mean rho=-0.100; mean slope=-13.38 ppm/unit,[-0.545  0.346]
+Phase 4,Paired t-test 1 atm vs 30 atm,NOx_ppm,11,1.414,0.18779624726987984,mean diff=440.1 ppm,[ -90.8 1068.8]
+Phase 4,"Exact sign test, same monotone direction at every phi1 (preheat)",NOx_ppm,7,,0.015625,mean rho=1.000; mean slope=6.118 ppm/unit,[1. 1.]
+Phase 4,"Exact sign test, same monotone direction at every phi1 (liner cooling)",NOx_ppm,7,,0.015625,mean rho=-1.000; mean slope=-0.1287 ppm/unit,[-1. -1.]
+Phase 4,Paired t-test adiabatic vs U=3000,NOx_ppm,7,17.773,2.0383678125961748e-06,mean diff=386.1 ppm,[343.8 421.9]
+Phase 4,Linear regression T_final vs T_in,T_final_K,4,0.6629,1.0560321426211873e-06,"slope=0.663 K/K, R2=1.0000",

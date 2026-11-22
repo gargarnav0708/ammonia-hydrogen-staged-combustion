@@ -82,3 +82,9 @@ Launch Jupyter from the repository root so notebook imports and paths resolve co
 * `double_stage/decoupled_and_finite_mixing.ipynb`: Architecture decoupling and progressive mixing physics.
 * `double_stage/gas_turbine_conditions.ipynb`: Gas turbine operating regimes.
 * `double_stage/full_results_modified.ipynb`: Main 605-case parametric study.
+
+---
+
+## End-Semester Report & Statistical Significance
+* `docs/reports/BTP_End_Semester_Report.docx` – full end-semester report (Phases 1–4, pathway analysis, statistics); regenerate with `python docs/reports/build_end_semester_report.py` (figures from the mid-semester report are in `docs/reports/mid_sem_figures/`).
+* `python -m double_stage.statistical_significance_analysis` → `results/statistical_significance_summary.csv` (ANOVA, paired/non-parametric tests, bootstrap CIs, effect sizes for every phase).

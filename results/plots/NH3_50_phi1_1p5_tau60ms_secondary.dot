@@ -1,0 +1,6 @@
+digraph reaction_paths {
+center=1;
+ label = "Scale = 1e-10\l Secondary PSR N Reaction Paths
+NH3=0.50, phi1=1.50, tau=60 ms";
+ fontname = "Helvetica";
+}
