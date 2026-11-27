@@ -264,7 +264,7 @@ s6 = prs.slides.add_slide(BLANK)
 add_header(s6, "Phase 2: Kinetic Origin of the NOx U-Curve", 6)
 add_pic(s6, PLOTS / "rop_u_curve_pathway_mechanism.png", 0.45, 1.58, 12.4, 3.85)
 add_bullets(s6, 0.55, 5.5, 12.2, 1.7, None, [
-    ("Superposition:", "Stage-1 NOx drops monotonically (4400 \u2192 29 ppm) while Stage-2 \u0394NOx rises monotonically (\u2212191 \u2192 +3586 ppm)."),
+    ("Superposition:", "Stage-1 NOx drops monotonically (4400 \u2192 29 ppm) while Stage-2 \u0394NOx rises monotonically (\u2212191 \u2192 +3564 ppm)."),
     ("Amine Carry-Over:", "From \u03c6\u2081 = 1.0 \u2192 2.0, Stage-1 outlet NH2 rises 16.4\u00d7 (5.2 \u2192 85.7 ppm) and unburnt NH3 rises ~400\u00d7 (21.9 \u2192 8558 ppm)."),
     ("Stage-2 Oxidation Surge:", "Secondary air oxidises carried-over intermediates via HNO + OH \u21c4 H2O + NO (24\u00d7 higher at \u03c6\u2081 = 2.0 than 1.0)."),
 ], fs=14, space=4)

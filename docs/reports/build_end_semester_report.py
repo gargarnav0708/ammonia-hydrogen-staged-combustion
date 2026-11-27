@@ -354,7 +354,7 @@ J(f"Rich\u2013lean air staging is investigated for carbon-free NH<sub>3</sub>/H<
   f"pairs), staging reduces NO<sub>x</sub> by {mean_red:.1f}% on average (95% CI [{lo:.1f}, {hi:.1f}]%, peak 90.4%, sign test "
   f"<i>p</i> = 2.81 \u00d7 10<sup>\u221294</sup>), penalising only pure H<sub>2</sub>. Second, rate-of-production (ROP) analysis proves that the "
   f"U-shaped NO<sub>x</sub> curve against primary equivalence ratio (<i>\u03c6</i><sub>1</sub> = 1.0\u20132.0) is the superposition of falling Stage-1 "
-  f"NO<sub>x</sub> (4400 \u2192 29 ppm) and rising Stage-2 oxidation (\u2212191 \u2192 +3586 ppm) of carried-over NH<sub>2</sub> and NH<sub>3</sub> via "
+  f"NO<sub>x</sub> (4400 \u2192 29 ppm) and rising Stage-2 oxidation (\u2212191 \u2192 +3564 ppm) of carried-over NH<sub>2</sub> and NH<sub>3</sub> via "
   f"HNO + OH \u21c4 H<sub>2</sub>O + NO, separated by a thermal de-NO<sub>x</sub> valley at <i>\u03c6</i><sub>1</sub> \u2248 1.3. Third, decoupling residence "
   f"times shows longer primary residence (<i>\u03c4</i><sub>1</sub> = 50 ms) reduces amine carry-over and NO<sub>x</sub>, while five-stage progressive "
   f"secondary dilution cuts right-branch NO<sub>x</sub> at <i>\u03c6</i><sub>1</sub> = 2.0 by 88.3% (3693 \u2192 433 ppm, Friedman <i>p</i> = 1.67 \u00d7 10<sup>\u22125</sup>). "
@@ -563,17 +563,17 @@ fig_rop1 = FIGURE(PLOTS / "rop_u_curve_pathway_mechanism.png",
                   "Kinetic decomposition of the U-curve: (a) Stage-1 vs. final temperature and NO<sub>x</sub>, (b) amine carry-over from Stage 1, and (c) dominant Stage-2 NO rates.", 15.2)
 fig_rop2 = FIGURE(PLOTS / "rop_top_no_reactions_stage1_vs_stage2.png", "Top elementary NO source (blue) and sink (red) reactions in Stage 1 and Stage 2 at <i>\u03c6</i><sub>1</sub> = 1.0, 1.3, and 1.8.", 14.8)
 J(f"Figure {{FIG_ROP1}}(a) proves the U-curve is the sum of two monotonic processes: Stage-1 NO<sub>x</sub> drops monotonically from "
-  f"4400 ppm (<i>\u03c6</i><sub>1</sub> = 1.0, 2168 K) to 29 ppm (<i>\u03c6</i><sub>1</sub> = 2.0, 1720 K), while Stage-2 NO<sub>x</sub> generation climbs monotonically "
-  f"from \u2212191 to +3586 ppm. Simultaneously, Figure {{FIG_ROP1}}(b) shows Stage-1 outlet carry-over surging: NH<sub>2</sub> rises 16.4\u00d7 "
+  f"4766 ppm (<i>\u03c6</i><sub>1</sub> = 1.0, 2168 K) to 29 ppm (<i>\u03c6</i><sub>1</sub> = 2.0, 1720 K), while Stage-2 NO<sub>x</sub> generation climbs monotonically "
+  f"from \u2212191 to +3564 ppm. Simultaneously, Figure {{FIG_ROP1}}(b) shows Stage-1 outlet carry-over surging: NH<sub>2</sub> rises 16.4\u00d7 "
   f"(5.2 \u2192 85.7 ppm) and unburnt NH<sub>3</sub> rises nearly 400\u00d7 (21.9 \u2192 8558 ppm). Figure {{FIG_ROP2}} and Figure {{FIG_ROP1}}(c) "
   f"define three regimes:")
-B(["<b>Left Branch (<i>\u03c6</i><sub>1</sub> = 1.0\u20131.2):</b> Hot, oxygen-containing Stage 1 forms 4400 ppm NO via N + OH \u21c4 H + NO and "
+B(["<b>Left Branch (<i>\u03c6</i><sub>1</sub> = 1.0\u20131.2):</b> Hot, oxygen-containing Stage 1 forms 4766 ppm NO via N + OH \u21c4 H + NO and "
    "HNO + OH \u21c4 H<sub>2</sub>O + NO; Stage 2 yields net de-NO<sub>x</sub> (\u2212191 ppm).",
-   "<b>DeNOx Valley (<i>\u03c6</i><sub>1</sub> \u2248 1.3):</b> Moderate oxygen depletion lowers Stage-1 NO<sub>x</sub> to 437 ppm via NH + NO \u21c4 H + N<sub>2</sub>O, "
+   "<b>DeNOx Valley (<i>\u03c6</i><sub>1</sub> \u2248 1.3):</b> Moderate oxygen depletion lowers Stage-1 NO<sub>x</sub> to 573 ppm via NH + NO \u21c4 H + N<sub>2</sub>O, "
    "N + NO \u21c4 N<sub>2</sub> + O, and NH<sub>2</sub> + NO \u21c4 H<sub>2</sub>O + N<sub>2</sub> / NNH + OH, while modest NH<sub>2</sub> carry-over (23.3 ppm) limits total NO<sub>x</sub> to 986 ppm.",
    "<b>Right Branch (<i>\u03c6</i><sub>1</sub> \u2265 1.6):</b> Oxygen starvation cuts Stage-1 NO<sub>x</sub> below 110 ppm, but 45\u201355% secondary air in Stage 2 "
    "oxidises carried-over NH<sub>3</sub>/NH<sub>2</sub> via HNO + OH \u21c4 H<sub>2</sub>O + NO (+4.01 \u00d7 10<sup>\u22124</sup> kmol m<sup>\u22123</sup> s<sup>\u22121</sup> at <i>\u03c6</i><sub>1</sub> = 2.0, "
-   "24\u00d7 its <i>\u03c6</i><sub>1</sub> = 1.0 rate) and NH + O<sub>2</sub> \u21c4 NO + OH (>9500\u00d7), overwhelming Stage-2 de-NO<sub>x</sub> and regenerating +3586 ppm NO<sub>x</sub>."])
+   "24\u00d7 its <i>\u03c6</i><sub>1</sub> = 1.0 rate) and NH + O<sub>2</sub> \u21c4 NO + OH (>9500\u00d7), overwhelming Stage-2 de-NO<sub>x</sub> and regenerating +3564 ppm NO<sub>x</sub>."])
 
 H("4.5 Nitrogen Reaction-Pathway Topology", 2)
 fig_rp = FIGURE(RP_COMP, "Normalised element-\u2018N\u2019 reaction-path diagrams: (a) Stage 1 left branch (<i>\u03c6</i><sub>1</sub> = 1.0), (b) Stage 1 right branch (<i>\u03c6</i><sub>1</sub> = 1.8), and (c) Stage 2 re-oxidation (<i>\u03c6</i><sub>1</sub> = 1.8).", 15.5)
@@ -718,7 +718,7 @@ H("7.1 Summary", 2)
 B(["<b>Phase 1:</b> Two-stage RQL combustion cuts NO<sub>x</sub> by 55.1% across 469 matched cases (60.1% for NH<sub>3</sub> blends, up to 90.4%, "
    "<i>p</i> = 2.81 \u00d7 10<sup>\u221294</sup>), failing only for pure H<sub>2</sub> or extreme right-branch NH<sub>3</sub>-rich conditions.",
    "<b>Phase 2:</b> The NO<sub>x</sub> U-curve arises from falling Stage-1 thermal NO (4400 \u2192 29 ppm) and rising Stage-2 oxidation "
-   "(\u2212191 \u2192 +3586 ppm) of carried-over NH<sub>2</sub>/NH<sub>3</sub> via HNO + OH \u21c4 H<sub>2</sub>O + NO, separated by a de-NO<sub>x</sub> valley at <i>\u03c6</i><sub>1</sub> \u2248 1.3.",
+   "(\u2212191 \u2192 +3564 ppm) of carried-over NH<sub>2</sub>/NH<sub>3</sub> via HNO + OH \u21c4 H<sub>2</sub>O + NO, separated by a de-NO<sub>x</sub> valley at <i>\u03c6</i><sub>1</sub> \u2248 1.3.",
    "<b>Phase 3:</b> Longer rich residence (<i>\u03c4</i><sub>1</sub> = 50 ms) suppresses NH<sub>2</sub> carry-over, and 5-stage progressive secondary dilution "
    "eliminates the right-branch NO<sub>x</sub> surge (\u221288.3%, Friedman <i>p</i> = 1.67 \u00d7 10<sup>\u22125</sup>).",
    "<b>Phase 4:</b> Pressure (30 atm) shifts optimal <i>\u03c6</i><sub>1</sub> to 1.1 and collapses curve variance by 73.7% (<i>p</i> = 0.0125); air preheat "

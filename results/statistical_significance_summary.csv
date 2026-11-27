@@ -1,18 +1,18 @@
 Phase,Test,Quantity,N,Statistic,p_value,Effect,CI95
 Main 605-case,Type-II ANOVA F-test (NH3_frac),T_final_K,586,6237.111,0.0,"partial R2 contribution=0.9814 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Phi_1),T_final_K,586,57.795,9.759606007705755e-80,"partial R2 contribution=0.0091 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Tau_ms),T_final_K,586,22.841,1.6792427607378703e-17,"partial R2 contribution=0.0014 (df=4,561)",
-Main 605-case,Type-II ANOVA F-test (NH3_frac),NOx_ppm,586,21.159,1.6118644329893606e-33,"partial R2 contribution=0.1966 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Phi_1),NOx_ppm,586,28.426,4.0658827634662634e-44,"partial R2 contribution=0.2641 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Tau_ms),NOx_ppm,586,7.673,5.047311506522382e-06,"partial R2 contribution=0.0285 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),T_final_K,586,57.795,9.759606007689071e-80,"partial R2 contribution=0.0091 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),T_final_K,586,22.841,1.6792427607353632e-17,"partial R2 contribution=0.0014 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (NH3_frac),NOx_ppm,586,21.159,1.6118644329895597e-33,"partial R2 contribution=0.1966 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),NOx_ppm,586,28.426,4.0658827634666343e-44,"partial R2 contribution=0.2641 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),NOx_ppm,586,7.673,5.0473115065226794e-06,"partial R2 contribution=0.0285 (df=4,561)",
 Main 605-case,Type-II ANOVA F-test (NH3_frac),H2_slip,586,1469.23,0.0,"partial R2 contribution=0.9057 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Phi_1),H2_slip,586,41.46,3.482384159687583e-61,"partial R2 contribution=0.0256 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Tau_ms),H2_slip,586,132.55,1.2288101515732043e-79,"partial R2 contribution=0.0327 (df=4,561)",
-Main 605-case,Type-II ANOVA F-test (NH3_frac),Delta_T_K,586,49.052,3.742284185207243e-70,"partial R2 contribution=0.0031 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),H2_slip,586,41.46,3.4823841596873956e-61,"partial R2 contribution=0.0256 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),H2_slip,586,132.55,1.2288101515729091e-79,"partial R2 contribution=0.0327 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (NH3_frac),Delta_T_K,586,49.052,3.7422841852074573e-70,"partial R2 contribution=0.0031 (df=10,561)",
 Main 605-case,Type-II ANOVA F-test (Phi_1),Delta_T_K,586,15698.023,0.0,"partial R2 contribution=0.9935 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Tau_ms),Delta_T_K,586,2.603,0.035159529013712,"partial R2 contribution=0.0001 (df=4,561)",
+Main 605-case,Type-II ANOVA F-test (Tau_ms),Delta_T_K,586,2.603,0.03515952901370513,"partial R2 contribution=0.0001 (df=4,561)",
 Main 605-case,Type-II ANOVA F-test (NH3_frac),Delta_NOx_ppm,586,106.497,1.153462546902168e-122,"partial R2 contribution=0.3393 (df=10,561)",
-Main 605-case,Type-II ANOVA F-test (Phi_1),Delta_NOx_ppm,586,153.009,4.0383455994636655e-153,"partial R2 contribution=0.4875 (df=10,561)",
+Main 605-case,Type-II ANOVA F-test (Phi_1),Delta_NOx_ppm,586,153.009,4.038345599463432e-153,"partial R2 contribution=0.4875 (df=10,561)",
 Main 605-case,Type-II ANOVA F-test (Tau_ms),Delta_NOx_ppm,586,1.987,0.09508478658060476,"partial R2 contribution=0.0025 (df=4,561)",
 Main 605-case,"One-sample t on within-cell Spearman rho(tau, NOx)",NOx_ppm,117,-5.555,1.794325767151774e-07,mean rho=-0.433,[-0.58  -0.277]
 Phase 1,Paired t-test (single - staged),NOx_ppm,469,33.789,1.258875249920337e-127,mean diff=4167.0 ppm; Cohen dz=1.560,[3920.7 4409. ]
@@ -45,4 +45,4 @@ Phase 4,"Spearman rho(P_atm, NO2/NOx)",NO2_ratio,55,0.988,3.137334855376443e-44,
 Phase 4,"Exact sign test, same monotone direction at every phi1 (preheat)",NOx_ppm,7,,0.015625,mean rho=1.000; mean slope=6.118 ppm/unit,[1. 1.]
 Phase 4,"Exact sign test, same monotone direction at every phi1 (liner cooling)",NOx_ppm,7,,0.015625,mean rho=-1.000; mean slope=-0.1287 ppm/unit,[-1. -1.]
 Phase 4,Paired t-test adiabatic vs U=3000,NOx_ppm,7,17.773,2.0383678125961748e-06,mean diff=386.1 ppm,[343.8 421.9]
-Phase 4,Linear regression T_final vs T_in,T_final_K,4,0.6629,1.0560321426211873e-06,"slope=0.663 K/K, R2=1.0000",
+Phase 4,Linear regression T_final vs T_in,T_final_K,4,0.6629,1.0560321428432317e-06,"slope=0.663 K/K, R2=1.0000",

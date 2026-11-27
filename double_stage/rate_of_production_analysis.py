@@ -86,13 +86,16 @@ def simulate_two_stage_detailed(x_nh3: float, phi_1: float, tau: float):
     if not converged1:
         raise RuntimeError(f"Primary PSR did not converge for phi_1={phi_1:.2f}")
 
-    # Copy primary reactor state
+    # Copy primary reactor state into an isolated Solution (Quantity + Quantity mutates its wrapped Solution in-place)
     phase1 = getattr(reactor1, "phase", getattr(reactor1, "thermo", None))
     primary_state = ct.Solution(MECH)
     primary_state.TDY = phase1.TDY
 
+    primary_for_mix = ct.Solution(MECH)
+    primary_for_mix.TDY = phase1.TDY
+
     # ------------------ STAGE 2 ------------------
-    primary_products = ct.Quantity(primary_state, constant="HP")
+    primary_products = ct.Quantity(primary_for_mix, constant="HP")
     primary_products.moles = primary_mix.moles
 
     air_stream_2 = ct.Quantity(gas, constant="HP")
