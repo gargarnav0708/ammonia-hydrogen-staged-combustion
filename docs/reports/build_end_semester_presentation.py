@@ -264,8 +264,8 @@ s6 = prs.slides.add_slide(BLANK)
 add_header(s6, "Phase 2: Kinetic Origin of the NOx U-Curve", 6)
 add_pic(s6, PLOTS / "rop_u_curve_pathway_mechanism.png", 0.45, 1.58, 12.4, 3.85)
 add_bullets(s6, 0.55, 5.5, 12.2, 1.7, None, [
-    ("Superposition:", "Stage-1 NOx drops monotonically (4400 \u2192 29 ppm) while Stage-2 \u0394NOx rises monotonically (\u2212191 \u2192 +3564 ppm)."),
-    ("Amine Carry-Over:", "From \u03c6\u2081 = 1.0 \u2192 2.0, Stage-1 outlet NH2 rises 16.4\u00d7 (5.2 \u2192 85.7 ppm) and unburnt NH3 rises ~400\u00d7 (21.9 \u2192 8558 ppm)."),
+    ("Superposition:", "Stage-1 NOx drops monotonically (4766 \u2192 51 ppm) while Stage-2 \u0394NOx rises monotonically (\u2212557 \u2192 +3564 ppm)."),
+    ("Amine Carry-Over:", "From \u03c6\u2081 = 1.0 \u2192 2.0, Stage-1 outlet NH2 rises 26.2\u00d7 (5.7 \u2192 148.4 ppm) and unburnt NH3 rises ~625\u00d7 (23.7 \u2192 14,813 ppm)."),
     ("Stage-2 Oxidation Surge:", "Secondary air oxidises carried-over intermediates via HNO + OH \u21c4 H2O + NO (24\u00d7 higher at \u03c6\u2081 = 2.0 than 1.0)."),
 ], fs=14, space=4)
 
@@ -274,11 +274,37 @@ add_bullets(s6, 0.55, 5.5, 12.2, 1.7, None, [
 s7 = prs.slides.add_slide(BLANK)
 add_header(s7, "Phase 2: Elementary NO Source & Sink Reactions", 7)
 add_pic(s7, PLOTS / "rop_top_no_reactions_stage1_vs_stage2.png", 0.4, 1.6, 7.9, 5.45)
-add_bullets(s7, 8.45, 1.75, 4.5, 5.1, "THREE CHEMICAL REGIMES", [
+add_bullets(s7, 8.45, 1.65, 4.65, 2.75, "THREE CHEMICAL REGIMES", [
     ("Left Branch (\u03c6\u2081 = 1.0):", "Hot O-rich Stage 1 forms NO via N + OH and HNO + OH; Stage 2 slightly reduces NO."),
-    ("DeNOx Valley (\u03c6\u2081 = 1.3):", "NH + NO \u21c4 H + N2O, N + NO \u21c4 N2 + O, and NH2 + NO convert fuel-N to N2; valley minimum at 986 ppm."),
-    ("Right Branch (\u03c6\u2081 \u2265 1.8):", "Stage 1 is O2-starved (<110 ppm NOx), but Stage 2 HNO + OH (+2.3 to 4.0 \u00d7 10\u207b\u2074) and HONO/NO2 cycling regenerate NO."),
-], fs=15, space=12)
+    ("DeNOx Valley (\u03c6\u2081 = 1.3):", "NH + NO / N + NO / NH2 + NO convert fuel-N to N2; valley minimum at 986 ppm."),
+    ("Right Branch (\u03c6\u2081 = 1.8):", "Stage 1 is O2-starved (88 ppm NOx), but Stage 2 HNO + OH (+2.3 \u00d7 10\u207b\u2074) regenerates NO."),
+], fs=13.5, h_fs=16, space=6)
+
+tbl_shape = s7.shapes.add_table(4, 4, Inches(8.45), Inches(4.55), Inches(4.65), Inches(2.2))
+tbl = tbl_shape.table
+col_w = [0.65, 1.35, 1.35, 1.30]
+for i, w in enumerate(col_w):
+    tbl.columns[i].width = Inches(w)
+rows_s7 = [
+    ["\u03c6\u2081", "S1 Net NO\n(kmol/m\u00b3s)", "S2 Net NO\n(kmol/m\u00b3s)", "NOx S1 \u2192 S2\n(ppm)"],
+    ["1.0", "+4.46e\u22124", "\u22122.04e\u22125", "4766 \u2192 4209"],
+    ["1.3", "+5.67e\u22125", "+5.17e\u22125", "573 \u2192 986"],
+    ["1.8", "+9.94e\u22126", "+2.43e\u22124", "88 \u2192 2537"],
+]
+for r_i, r_vals in enumerate(rows_s7):
+    for c_i, val in enumerate(r_vals):
+        cell = tbl.cell(r_i, c_i)
+        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = ICE if r_i == 0 else NAVY
+        p = cell.text_frame.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        run = p.add_run()
+        run.text = val
+        run.font.name = FONT
+        run.font.size = Pt(10.5 if r_i == 0 else 11.5)
+        run.font.bold = (r_i == 0 or c_i == 0)
+        run.font.color.rgb = NAVY if r_i == 0 else WHITE
 
 
 # ================================================================ SLIDE 8: PHASE 2 NITROGEN PATHWAY DIAGRAMS
